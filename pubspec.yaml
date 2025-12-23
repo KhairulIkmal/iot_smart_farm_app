@@ -1,0 +1,47 @@
+name: iot_smart_farm_app
+description: "IoT Smart Farm Management Application"
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+
+  # 🔥 Firebase Core
+  firebase_core: ^3.6.0
+
+  # 🔐 Authentication
+  firebase_auth: ^5.3.1
+  google_sign_in: ^6.2.1
+
+  # 🗂 Firestore (users, crops, devices, irrigation_rules)
+  cloud_firestore: ^5.4.4
+
+  # ⚡ Realtime Database (sensor readings, commands)
+  firebase_database: ^11.1.4
+
+  # 🗺 Map & Location (Farm Location Screen)
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  geolocator: ^10.0.0
+
+  # 🌐 HTTP (OpenWeather API)
+  http: ^1.1.0
+
+  # 💾 Local Storage (Preferences)
+  shared_preferences: ^2.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
