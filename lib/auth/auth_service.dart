@@ -3,11 +3,173 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/theme.dart';
 import 'login_screen.dart';
 import '../features/navigation/main_navigation.dart';
 import '../features/crop_management/crop_list_screen.dart';
+
+/// ------------------------------------------------------------
+/// AUTH SERVICE
+/// Handles all authentication operations
+/// ------------------------------------------------------------
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Sign in with email and password
+  Future<Map<String, dynamic>> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      return {'success': true};
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'error': _getAuthErrorMessage(e.code)};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'An unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
+  /// Register with email and password
+  Future<Map<String, dynamic>> registerWithEmail({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    try {
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Update display name
+      await userCredential.user?.updateDisplayName(name);
+
+      // Create user document in Firestore
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'uid': userCredential.user!.uid,
+        'name': name,
+        'email': email,
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+
+      return {'success': true};
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'error': _getAuthErrorMessage(e.code)};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'An unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
+  /// Sign in with Google
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      // Trigger Google Sign In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        return {'success': false, 'error': 'Sign in cancelled'};
+      }
+
+      // Obtain auth details
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      // Check if user document exists, if not create it
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        await _firestore.collection('users').doc(userCredential.user!.uid).set({
+          'uid': userCredential.user!.uid,
+          'name': userCredential.user!.displayName ?? '',
+          'email': userCredential.user!.email ?? '',
+          'created_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {'success': true};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Failed to sign in with Google. Please try again.',
+      };
+    }
+  }
+
+  /// Send password reset email
+  Future<Map<String, dynamic>> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return {'success': true};
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'error': _getAuthErrorMessage(e.code)};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Failed to send password reset email. Please try again.',
+      };
+    }
+  }
+
+  /// Sign out
+  Future<void> signOut() async {
+    await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
+  }
+
+  /// Get current user
+  User? get currentUser => _auth.currentUser;
+
+  /// Get auth state changes stream
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  /// Convert Firebase Auth error codes to user-friendly messages
+  String _getAuthErrorMessage(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'No account found with this email.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'email-already-in-use':
+        return 'An account already exists with this email.';
+      case 'invalid-email':
+        return 'Invalid email address.';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 6 characters.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'Network error. Please check your connection.';
+      default:
+        return 'An error occurred. Please try again.';
+    }
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

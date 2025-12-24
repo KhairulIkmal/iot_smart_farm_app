@@ -550,14 +550,15 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   Widget _buildCropSelector() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: DropdownButtonFormField<String>(
-        value: _selectedCropType,
+        initialValue: _selectedCropType,
         dropdownColor: AppColors.surfaceDark,
         decoration: InputDecoration(
+          filled: false,
           prefixIcon: Icon(
             Icons.eco_outlined,
             color: _selectedCropType != null
@@ -609,15 +610,16 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
         style: const TextStyle(color: Colors.white, fontSize: 16),
         decoration: InputDecoration(
+          filled: false,
           labelText: label,
           hintText: hint,
           labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),

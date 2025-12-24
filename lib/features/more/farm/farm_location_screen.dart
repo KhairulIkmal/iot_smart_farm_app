@@ -267,8 +267,8 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
             initialZoom: _currentZoom,
             onTap: _onMapTap,
             onPositionChanged: (position, hasGesture) {
-              if (hasGesture) {
-                _currentZoom = position.zoom;
+              if (hasGesture && position.zoom != null) {
+                _currentZoom = position.zoom!;
               }
             },
           ),

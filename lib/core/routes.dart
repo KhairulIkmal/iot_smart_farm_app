@@ -125,7 +125,11 @@ class AppRouter {
         return _buildRoute(const CropListScreen(), settings);
 
       case AppRoutes.claimDevice:
-        return _buildRoute(const ClaimDeviceScreen(), settings);
+        final args = settings.arguments as Map<String, dynamic>?;
+        return _buildRoute(
+          ClaimDeviceScreen(deviceId: args?['deviceId'] ?? ''),
+          settings,
+        );
 
       // Profile & Settings Routes
       case AppRoutes.profile:
