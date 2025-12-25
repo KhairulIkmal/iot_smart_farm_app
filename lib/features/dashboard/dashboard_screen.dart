@@ -231,7 +231,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId/lastSeen').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId/lastSeen').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         bool isOnline = false;
 
@@ -599,7 +599,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         // Default values
         int soil = 0;
@@ -609,26 +609,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Map<String, String> sensorHealth = {};
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
 
-          soil = (data['soil'] ?? 0) is int
-              ? data['soil']
-              : (data['soil'] as num).toInt();
-          ph = (data['ph'] ?? 0.0) is double
-              ? data['ph']
-              : (data['ph'] as num).toDouble();
-          temp = (data['temp'] ?? 0) is int
-              ? data['temp']
-              : (data['temp'] as num).toInt();
-          humidity = (data['humidity'] ?? 0) is int
-              ? data['humidity']
-              : (data['humidity'] as num).toInt();
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
 
-          // Parse sensorHealth
-          if (data['sensorHealth'] != null) {
-            final healthData = Map<String, dynamic>.from(data['sensorHealth']);
+            soil = data['soil'] != null
+                ? (data['soil'] is int ? data['soil'] : (data['soil'] as num).toInt())
+                : 0;
+            ph = data['ph'] != null
+                ? (data['ph'] is double ? data['ph'] : (data['ph'] as num).toDouble())
+                : 0.0;
+            temp = data['temp'] != null
+                ? (data['temp'] is int ? data['temp'] : (data['temp'] as num).toInt())
+                : 0;
+            humidity = data['humidity'] != null
+                ? (data['humidity'] is int ? data['humidity'] : (data['humidity'] as num).toInt())
+                : 0;
+          }
+
+          // Parse sensorHealth from sensorHealth node
+          if (rootData['sensorHealth'] != null) {
+            final healthData = Map<String, dynamic>.from(rootData['sensorHealth']);
             sensorHealth = healthData.map((k, v) => MapEntry(k, v.toString()));
           }
         }
@@ -890,21 +895,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_selectedDeviceId == null) return const SizedBox.shrink();
 
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         int waterLevel = 0;
         String? healthStatus;
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
-          waterLevel = (data['waterLevel'] ?? 0) is int
-              ? data['waterLevel']
-              : (data['waterLevel'] as num).toInt();
 
-          if (data['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(data['sensorHealth']);
+          // Read waterLevel from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
+            waterLevel = data['waterLevel'] != null
+                ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
+                : 0;
+          }
+
+          // Read health status from sensorHealth node
+          if (rootData['sensorHealth'] != null) {
+            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
             healthStatus = health['waterLevel']?.toString();
           }
         }

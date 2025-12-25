@@ -5,4 +5,5 @@ library;
 
 export 'custom_button.dart';
 export 'custom_tile.dart';
+export 'custom_text_field.dart';
 export 'loading_indicator.dart';

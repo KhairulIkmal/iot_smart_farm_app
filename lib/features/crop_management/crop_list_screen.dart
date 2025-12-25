@@ -715,11 +715,20 @@ class _CropListScreenState extends State<CropListScreen> {
   /// ------------------------------------------------
   /// NAVIGATION & ACTIONS
   /// ------------------------------------------------
-  void _navigateToClaimDevice(String deviceId) {
-    Navigator.push(
+  Future<void> _navigateToClaimDevice(String deviceId) async {
+    final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => ClaimDeviceScreen(deviceId: deviceId)),
     );
+
+    // If claim was successful, navigate to main navigation (Dashboard tab)
+    if (result == true && mounted) {
+      // Replace the current screen with MainNavigation and go to Dashboard
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/main',
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _showUnclaimDialog({

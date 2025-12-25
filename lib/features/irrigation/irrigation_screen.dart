@@ -216,8 +216,10 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             color: AppColors.backgroundDark,
             borderRadius: BorderRadius.circular(10),
           ),
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withOpacity(0.5),
+          unselectedLabelColor: Colors.white.withOpacity(0.4),
           labelStyle: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -269,28 +271,33 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     }
 
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         bool isConnected = false;
         int waterLevel = 0;
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
 
-          // Check if device is online (lastSeen within 5 minutes)
-          final lastSeen = data['lastSeen'] as int?;
-          if (lastSeen != null) {
-            final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-              lastSeen * 1000,
-            );
-            isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
-          }
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
 
-          waterLevel = (data['waterLevel'] ?? 0) is int
-              ? data['waterLevel']
-              : (data['waterLevel'] as num).toInt();
+            // Check if device is online (lastSeen within 5 minutes)
+            final lastSeen = data['lastSeen'] as int?;
+            if (lastSeen != null) {
+              final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
+                lastSeen * 1000,
+              );
+              isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
+            }
+
+            waterLevel = data['waterLevel'] != null
+                ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
+                : 0;
+          }
         }
 
         return Container(
@@ -396,15 +403,17 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   }
 
   Widget _buildPumpControl() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Column(
-        children: [
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Column(
+          children: [
           Text(
             _isPumpActive ? 'Pump Running' : 'System Ready',
             style: TextStyle(
@@ -476,6 +485,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -531,7 +541,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         Expanded(
           child: StreamBuilder<DatabaseEvent>(
             stream: _selectedDeviceId != null
-                ? _rtdb.ref('sensors/$_selectedDeviceId/waterLevel').onValue
+                ? _rtdb.ref('sensors/$_selectedDeviceId/waterLevel').onValue.asBroadcastStream()
                 : null,
             builder: (context, snapshot) {
               int waterLevel = 0;
@@ -674,31 +684,36 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     }
 
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         bool isConnected = false;
         int soil = 0;
         double ph = 0.0;
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
 
-          final lastSeen = data['lastSeen'] as int?;
-          if (lastSeen != null) {
-            final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-              lastSeen * 1000,
-            );
-            isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
-          }
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
 
-          soil = (data['soil'] ?? 0) is int
-              ? data['soil']
-              : (data['soil'] as num).toInt();
-          ph = (data['ph'] ?? 0.0) is double
-              ? data['ph']
-              : (data['ph'] as num).toDouble();
+            final lastSeen = data['lastSeen'] as int?;
+            if (lastSeen != null) {
+              final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
+                lastSeen * 1000,
+              );
+              isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
+            }
+
+            soil = data['soil'] != null
+                ? (data['soil'] is int ? data['soil'] : (data['soil'] as num).toInt())
+                : 0;
+            ph = data['ph'] != null
+                ? (data['ph'] is double ? data['ph'] : (data['ph'] as num).toDouble())
+                : 0.0;
+          }
         }
 
         return Container(
@@ -861,7 +876,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   Widget _buildSoilMoistureRule() {
     return StreamBuilder<DatabaseEvent>(
       stream: _selectedDeviceId != null
-          ? _rtdb.ref('sensors/$_selectedDeviceId/soil').onValue
+          ? _rtdb.ref('sensors/$_selectedDeviceId/soil').onValue.asBroadcastStream()
           : null,
       builder: (context, snapshot) {
         int currentSoil = 0;
@@ -971,7 +986,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   Widget _buildPhLevelRule() {
     return StreamBuilder<DatabaseEvent>(
       stream: _selectedDeviceId != null
-          ? _rtdb.ref('sensors/$_selectedDeviceId/ph').onValue
+          ? _rtdb.ref('sensors/$_selectedDeviceId/ph').onValue.asBroadcastStream()
           : null,
       builder: (context, snapshot) {
         double currentPh = 7.0;

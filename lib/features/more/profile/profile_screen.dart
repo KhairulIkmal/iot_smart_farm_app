@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/theme.dart';
+import '../../../widgets/index.dart';
 
 /// ------------------------------------------------------------
 /// PROFILE SCREEN
@@ -168,7 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
 
                     // Name Field
-                    _buildTextField(
+                    CustomTextField(
                       controller: _nameController,
                       label: 'Full Name',
                       icon: Icons.person_outline,
@@ -179,17 +180,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
 
                     // Phone Field
-                    _buildTextField(
+                    CustomTextField.phone(
                       controller: _phoneController,
                       label: 'Phone Number',
-                      icon: Icons.phone_outlined,
                       enabled: _isEditing,
-                      keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
 
                     // Farm Name Field
-                    _buildTextField(
+                    CustomTextField(
                       controller: _farmNameController,
                       label: 'Farm Name',
                       icon: Icons.agriculture_outlined,
@@ -199,62 +198,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     // Save / Cancel Buttons
                     if (_isEditing) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isSaving ? null : _saveProfile,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: _isSaving
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : const Text(
-                                  'Save Changes',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                        ),
+                      CustomButton.primary(
+                        text: 'Save Changes',
+                        onPressed: _isSaving ? null : _saveProfile,
+                        isLoading: _isSaving,
+                        size: CustomButtonSize.large,
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            _loadUserData();
-                            setState(() => _isEditing = false);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: BorderSide(color: AppColors.borderDark),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                      CustomButton.secondary(
+                        text: 'Cancel',
+                        onPressed: () {
+                          _loadUserData();
+                          setState(() => _isEditing = false);
+                        },
+                        size: CustomButtonSize.large,
                       ),
                     ],
                   ],
@@ -359,44 +316,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    bool enabled = true,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: enabled
-              ? AppColors.primary.withOpacity(0.3)
-              : AppColors.borderDark,
-        ),
-      ),
-      child: TextFormField(
-        controller: controller,
-        enabled: enabled,
-        keyboardType: keyboardType,
-        validator: validator,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-          prefixIcon: Icon(
-            icon,
-            color: enabled ? AppColors.primary : Colors.white.withOpacity(0.3),
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-        ),
-      ),
-    );
-  }
 }

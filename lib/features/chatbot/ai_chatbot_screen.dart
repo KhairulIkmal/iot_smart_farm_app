@@ -26,6 +26,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   final List<String> _cropTypes = [
     'Tomato',
+    'Cabbage',
     'Carrots',
     'Corn',
     'Wheat',
@@ -47,6 +48,16 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'frequency': 'Daily',
       'tip':
           'Tomatoes need consistent moisture. Avoid wetting leaves to prevent disease.',
+    },
+    'Cabbage': {
+      'moistureMin': 60,
+      'moistureMax': 75,
+      'phMin': 6.0,
+      'phMax': 7.5,
+      'bestTime': '06:00 AM',
+      'frequency': 'Every 2 Days',
+      'tip':
+          'Cabbage needs consistent moisture for head formation. Mulch to retain soil moisture.',
     },
     'Carrots': {
       'moistureMin': 60,

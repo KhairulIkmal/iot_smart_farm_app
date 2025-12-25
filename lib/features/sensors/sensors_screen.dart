@@ -98,20 +98,25 @@ class _SensorsScreenState extends State<SensorsScreen> {
         .onValue
         .listen((event) {
           if (event.snapshot.value != null) {
-            final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+            final rootData = Map<String, dynamic>.from(event.snapshot.value as Map);
 
-            final soil = (data['soil'] ?? 0) is int
-                ? (data['soil'] as int).toDouble()
-                : (data['soil'] as num).toDouble();
-            final temp = (data['temp'] ?? 0) is int
-                ? (data['temp'] as int).toDouble()
-                : (data['temp'] as num).toDouble();
-            final humidity = (data['humidity'] ?? 0) is int
-                ? (data['humidity'] as int).toDouble()
-                : (data['humidity'] as num).toDouble();
-            final water = (data['waterLevel'] ?? 0) is int
-                ? (data['waterLevel'] as int).toDouble()
-                : (data['waterLevel'] as num).toDouble();
+            // Read from live node
+            final data = rootData['live'] != null
+                ? Map<String, dynamic>.from(rootData['live'])
+                : <String, dynamic>{};
+
+            final soil = data['soil'] != null
+                ? (data['soil'] is int ? (data['soil'] as int).toDouble() : (data['soil'] as num).toDouble())
+                : 0.0;
+            final temp = data['temp'] != null
+                ? (data['temp'] is int ? (data['temp'] as int).toDouble() : (data['temp'] as num).toDouble())
+                : 0.0;
+            final humidity = data['humidity'] != null
+                ? (data['humidity'] is int ? (data['humidity'] as int).toDouble() : (data['humidity'] as num).toDouble())
+                : 0.0;
+            final water = data['waterLevel'] != null
+                ? (data['waterLevel'] is int ? (data['waterLevel'] as int).toDouble() : (data['waterLevel'] as num).toDouble())
+                : 0.0;
 
             // Generate simulated historical data (±10% variation)
             setState(() {
@@ -260,21 +265,27 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// ------------------------------------------------
   Widget _buildSoilMoistureCard() {
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         int soilMoisture = 0;
         String healthStatus = 'ok';
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
-          soilMoisture = (data['soil'] ?? 0) is int
-              ? data['soil']
-              : (data['soil'] as num).toInt();
 
-          if (data['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(data['sensorHealth']);
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
+            soilMoisture = data['soil'] != null
+                ? (data['soil'] is int ? data['soil'] : (data['soil'] as num).toInt())
+                : 0;
+          }
+
+          // Read health from sensorHealth node
+          if (rootData['sensorHealth'] != null) {
+            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
             healthStatus = health['soil']?.toString() ?? 'ok';
           }
         }
@@ -454,21 +465,26 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// ------------------------------------------------
   Widget _buildAirConditionsCard() {
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         int temp = 0;
         int humidity = 0;
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
-          temp = (data['temp'] ?? 0) is int
-              ? data['temp']
-              : (data['temp'] as num).toInt();
-          humidity = (data['humidity'] ?? 0) is int
-              ? data['humidity']
-              : (data['humidity'] as num).toInt();
+
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
+            temp = data['temp'] != null
+                ? (data['temp'] is int ? data['temp'] : (data['temp'] as num).toInt())
+                : 0;
+            humidity = data['humidity'] != null
+                ? (data['humidity'] is int ? data['humidity'] : (data['humidity'] as num).toInt())
+                : 0;
+          }
         }
 
         final tempStatus = _getTempStatus(temp);
@@ -670,21 +686,27 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// ------------------------------------------------
   Widget _buildWaterTankCard() {
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         int waterLevel = 0;
         String healthStatus = 'ok';
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
-          waterLevel = (data['waterLevel'] ?? 0) is int
-              ? data['waterLevel']
-              : (data['waterLevel'] as num).toInt();
 
-          if (data['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(data['sensorHealth']);
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
+            waterLevel = data['waterLevel'] != null
+                ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
+                : 0;
+          }
+
+          // Read health from sensorHealth node
+          if (rootData['sensorHealth'] != null) {
+            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
             healthStatus = health['waterLevel']?.toString() ?? 'ok';
           }
         }
@@ -855,21 +877,27 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// ------------------------------------------------
   Widget _buildSoilPhCard() {
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue,
+      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         double ph = 7.0;
         String healthStatus = 'ok';
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(
+          final rootData = Map<String, dynamic>.from(
             snapshot.data!.snapshot.value as Map,
           );
-          ph = (data['ph'] ?? 7.0) is double
-              ? data['ph']
-              : (data['ph'] as num).toDouble();
 
-          if (data['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(data['sensorHealth']);
+          // Read from live node
+          if (rootData['live'] != null) {
+            final data = Map<String, dynamic>.from(rootData['live']);
+            ph = data['ph'] != null
+                ? (data['ph'] is double ? data['ph'] : (data['ph'] as num).toDouble())
+                : 7.0;
+          }
+
+          // Read health from sensorHealth node
+          if (rootData['sensorHealth'] != null) {
+            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
             healthStatus = health['ph']?.toString() ?? 'ok';
           }
         }
