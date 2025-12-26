@@ -38,6 +38,9 @@ dependencies:
   # 💾 Local Storage (Preferences)
   shared_preferences: ^2.2.0
 
+  # 🕐 Date & Time Formatting
+  intl: ^0.18.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

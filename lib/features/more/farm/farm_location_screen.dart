@@ -223,33 +223,106 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
-      appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Set Location',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
             )
-          : Column(
+          : Stack(
               children: [
-                // Map Section
-                Expanded(flex: 3, child: _buildMapSection()),
+                // Full screen map
+                _buildMapSection(),
 
-                // Location Details Section
+                // Top overlay with back button and search
+                _buildTopOverlay(),
+
+                // Bottom location details sheet
                 _buildLocationDetailsSection(),
               ],
             ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// TOP OVERLAY (Back button + Search bar + Title)
+  /// ------------------------------------------------
+  Widget _buildTopOverlay() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Back button and title
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceDark,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderDark),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        'Setup Location',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 44), // Balance for back button
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Search bar
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D3D2F),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search,
+                      color: Colors.white.withOpacity(0.5),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Search farm address or coordinates...',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -284,8 +357,8 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
               markers: [
                 Marker(
                   point: _selectedLocation,
-                  width: 50,
-                  height: 50,
+                  width: 80,
+                  height: 100,
                   child: _buildCustomMarker(),
                 ),
               ],
@@ -293,62 +366,72 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
           ],
         ),
 
-        // Instruction Tooltip
-        Positioned(
-          top: 16,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Text(
-                'Move map to pin farm location',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Current Location Button
+        // Zoom Controls
         Positioned(
           right: 16,
-          bottom: 16,
-          child: GestureDetector(
-            onTap: _getCurrentLocation,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+          top: MediaQuery.of(context).padding.top + 160,
+          child: Column(
+            children: [
+              // Current Location Button
+              GestureDetector(
+                onTap: _getCurrentLocation,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D3D2F),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
+                  child: const Icon(
+                    Icons.my_location,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
               ),
-              child: const Icon(
-                Icons.my_location,
-                color: Colors.black87,
-                size: 24,
+              const SizedBox(height: 12),
+              // Zoom In
+              GestureDetector(
+                onTap: () {
+                  setState(() => _currentZoom = (_currentZoom + 1).clamp(3.0, 18.0));
+                  _mapController.move(_selectedLocation, _currentZoom);
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D3D2F),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.add,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              // Zoom Out
+              GestureDetector(
+                onTap: () {
+                  setState(() => _currentZoom = (_currentZoom - 1).clamp(3.0, 18.0));
+                  _mapController.move(_selectedLocation, _currentZoom);
+                },
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D3D2F),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.remove,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -360,41 +443,34 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Green pin icon
+        const Icon(
+          Icons.location_on,
+          color: AppColors.primary,
+          size: 48,
+          shadows: [
+            Shadow(
+              color: Colors.black26,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // "DRAG TO ADJUST" label
         Container(
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: AppColors.primary,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.3),
-                blurRadius: 8,
-                spreadRadius: 2,
-              ),
-            ],
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.location_on,
-              color: AppColors.primary,
-              size: 18,
-            ),
-          ),
-        ),
-        // Pin shadow/point
-        Container(
-          width: 3,
-          height: 8,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [AppColors.primary, AppColors.primary.withOpacity(0.3)],
+          child: const Text(
+            'DRAG TO ADJUST',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
             ),
           ),
         ),
@@ -406,177 +482,208 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   /// LOCATION DETAILS SECTION
   /// ------------------------------------------------
   Widget _buildLocationDetailsSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Selected Location Card
-          Row(
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.map_outlined,
-                  color: AppColors.primary,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Selected Location',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+              // Farm icon and location details
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Farm icon
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.3),
+                        width: 1,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    _isFetchingAddress
-                        ? Row(
-                            children: [
-                              SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.grey[400]!,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Fetching address...',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(
-                            _selectedAddress.isNotEmpty
-                                ? _selectedAddress
-                                : 'Tap on map to select location',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              height: 1.4,
+                    child: const Icon(
+                      Icons.agriculture,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Location details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _isFetchingAddress
+                                  ? Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              Colors.grey[500]!,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          'Fetching location...',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[400],
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Text(
+                                      _selectedAddress.isNotEmpty
+                                          ? _selectedAddress.split(',').first
+                                          : 'Green Valley Farm',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            TextButton(
+                              onPressed: () {},
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(40, 20),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                'EDIT',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _selectedAddress.isNotEmpty && _selectedAddress.contains(',')
+                              ? _selectedAddress.substring(_selectedAddress.indexOf(',') + 2)
+                              : '1240 Farm Road, California, USA',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[500],
                           ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Coordinates Display
-          Row(
-            children: [
-              Expanded(
-                child: _buildCoordinateChip(
-                  label: 'Lat',
-                  value: _selectedLocation.latitude.toStringAsFixed(4),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildCoordinateChip(
-                  label: 'Lng',
-                  value: _selectedLocation.longitude.toStringAsFixed(4),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Save Button
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _isSaving ? null : _saveLocation,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Text(
-                      'Save Location',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        // Coordinates
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Lat : ${_selectedLocation.latitude.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Icon(
+                              Icons.language,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Long : ${_selectedLocation.longitude.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              // Confirm Location Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveLocation,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.black,
+                    disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                          ),
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.check_circle, size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'Confirm Location',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
           ),
-
-          // Bottom safe area padding
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCoordinateChip({required String label, required String value}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          Text(
-            '$label:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

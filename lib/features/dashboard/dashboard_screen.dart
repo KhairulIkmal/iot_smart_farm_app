@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/theme.dart';
 import '../../services/weather_service.dart';
+import '../weather/weather_forecast_screen.dart';
+import '../analytics/sensor_graph_screen.dart';
+import '../more/notifications/notifications_screen.dart';
 
 /// ------------------------------------------------------------
 /// DASHBOARD SCREEN (HOME TAB)
@@ -231,15 +235,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId/lastSeen').onValue.asBroadcastStream(),
+      stream: _rtdb.ref('sensors/$_selectedDeviceId/live/lastSeen').onValue.asBroadcastStream(),
       builder: (context, snapshot) {
         bool isOnline = false;
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
           final lastSeen = snapshot.data!.snapshot.value as int;
-          final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-            lastSeen * 1000,
-          );
+          // Firebase server timestamp is already in milliseconds, don't multiply
+          final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(lastSeen);
           final diff = DateTime.now().difference(lastSeenDate);
           // Consider online if last seen within 5 minutes
           isOnline = diff.inMinutes < 5;
@@ -344,33 +347,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         // Notification Button
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderDark),
-          ),
-          child: Stack(
-            children: [
-              const Icon(
-                Icons.notifications_outlined,
-                color: Colors.white,
-                size: 22,
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationsScreen(),
               ),
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.error,
-                    shape: BoxShape.circle,
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: Stack(
+              children: [
+                const Icon(
+                  Icons.notifications_outlined,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -446,14 +459,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final weather = _weatherData!;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Row(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const WeatherForecastScreen(),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Row(
         children: [
           Expanded(
             child: Column(
@@ -481,7 +503,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${weather.temperature.toInt()}°C',
+                  DateFormat('h:mm a').format(DateTime.now()),
                   style: const TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
@@ -492,19 +514,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   children: [
                     Icon(
-                      Icons.water_drop,
+                      Icons.location_on,
                       size: 14,
                       color: Colors.white.withOpacity(0.5),
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      '${weather.humidity}% Humidity',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.5),
+                    Flexible(
+                      child: Text(
+                        weather.cityName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Icon(
                       Icons.air,
                       size: 14,
@@ -512,7 +537,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${weather.windSpeed.toInt()} km/h',
+                      '${weather.windSpeed.toStringAsFixed(1)} km/h',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withOpacity(0.5),
@@ -523,21 +548,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          // Weather Icon
+          // Time of Day Icon
           Container(
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: _getWeatherIconColor(weather.main).withOpacity(0.1),
+              color: _getTimeOfDayColor().withOpacity(0.1),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
-              _getWeatherIcon(weather.main),
+              _getTimeOfDayIcon(),
               size: 48,
-              color: _getWeatherIconColor(weather.main),
+              color: _getTimeOfDayColor(),
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -579,6 +605,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Colors.lightBlue;
       default:
         return Colors.grey;
+    }
+  }
+
+  /// Get icon based on time of day
+  IconData _getTimeOfDayIcon() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      // Morning (5 AM - 12 PM)
+      return Icons.wb_sunny;
+    } else if (hour >= 12 && hour < 17) {
+      // Noon/Afternoon (12 PM - 5 PM)
+      return Icons.wb_sunny;
+    } else if (hour >= 17 && hour < 20) {
+      // Evening (5 PM - 8 PM)
+      return Icons.wb_twilight;
+    } else {
+      // Night (8 PM - 5 AM)
+      return Icons.nights_stay;
+    }
+  }
+
+  /// Get color based on time of day
+  Color _getTimeOfDayColor() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      // Morning - Light orange/yellow
+      return Colors.orange.shade300;
+    } else if (hour >= 12 && hour < 17) {
+      // Noon/Afternoon - Bright yellow
+      return Colors.amber;
+    } else if (hour >= 17 && hour < 20) {
+      // Evening - Orange/sunset
+      return Colors.deepOrange;
+    } else {
+      // Night - Blue/purple
+      return Colors.indigo.shade300;
     }
   }
 
@@ -644,34 +708,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildSensorCard(
-                    icon: Icons.water_drop,
-                    iconColor: AppColors.soilMoisture,
-                    iconBgColor: AppColors.soilMoistureBackground,
-                    label: 'SOIL MOISTURE',
-                    value: '$soil',
-                    unit: '%',
-                    status: _getSoilStatus(soil),
-                    statusColor: _getSoilStatusColor(soil),
-                    progressColor: AppColors.soilMoisture,
-                    progressValue: soil / 100,
-                    sensorHealth: sensorHealth['soil'],
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SensorGraphScreen(
+                            deviceId: _selectedDeviceId!,
+                            sensorType: 'soil',
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildSensorCard(
+                      icon: Icons.water_drop,
+                      iconColor: AppColors.soilMoisture,
+                      iconBgColor: AppColors.soilMoistureBackground,
+                      label: 'SOIL MOISTURE',
+                      value: '$soil',
+                      unit: '%',
+                      status: _getSoilStatus(soil),
+                      statusColor: _getSoilStatusColor(soil),
+                      progressColor: AppColors.soilMoisture,
+                      progressValue: soil / 100,
+                      sensorHealth: sensorHealth['soil'],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildSensorCard(
-                    icon: Icons.science,
-                    iconColor: AppColors.phLevel,
-                    iconBgColor: AppColors.phLevelBackground,
-                    label: 'PH LEVEL',
-                    value: ph.toStringAsFixed(1),
-                    unit: '',
-                    status: _getPhStatus(ph),
-                    statusColor: _getPhStatusColor(ph),
-                    progressColor: AppColors.phLevel,
-                    progressValue: ph / 14,
-                    sensorHealth: sensorHealth['ph'],
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SensorGraphScreen(
+                            deviceId: _selectedDeviceId!,
+                            sensorType: 'ph',
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildSensorCard(
+                      icon: Icons.science,
+                      iconColor: AppColors.phLevel,
+                      iconBgColor: AppColors.phLevelBackground,
+                      label: 'PH LEVEL',
+                      value: ph.toStringAsFixed(1),
+                      unit: '',
+                      status: _getPhStatus(ph),
+                      statusColor: _getPhStatusColor(ph),
+                      progressColor: AppColors.phLevel,
+                      progressValue: ph / 14,
+                      sensorHealth: sensorHealth['ph'],
+                    ),
                   ),
                 ),
               ],
@@ -681,33 +771,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildSensorCard(
-                    icon: Icons.thermostat,
-                    iconColor: AppColors.temperature,
-                    iconBgColor: AppColors.temperatureBackground,
-                    label: 'TEMPERATURE',
-                    value: '$temp',
-                    unit: '°C',
-                    status: _getTempStatus(temp),
-                    statusColor: _getTempStatusColor(temp),
-                    progressColor: AppColors.temperature,
-                    progressValue: temp / 50,
-                    isWarning: temp > 30,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SensorGraphScreen(
+                            deviceId: _selectedDeviceId!,
+                            sensorType: 'temp',
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildSensorCard(
+                      icon: Icons.thermostat,
+                      iconColor: AppColors.temperature,
+                      iconBgColor: AppColors.temperatureBackground,
+                      label: 'TEMPERATURE',
+                      value: '$temp',
+                      unit: '°C',
+                      status: _getTempStatus(temp),
+                      statusColor: _getTempStatusColor(temp),
+                      progressColor: AppColors.temperature,
+                      progressValue: temp / 50,
+                      isWarning: temp > 30,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildSensorCard(
-                    icon: Icons.cloud,
-                    iconColor: AppColors.humidity,
-                    iconBgColor: AppColors.humidityBackground,
-                    label: 'HUMIDITY',
-                    value: '$humidity',
-                    unit: '%',
-                    status: _getHumidityStatus(humidity),
-                    statusColor: _getHumidityStatusColor(humidity),
-                    progressColor: AppColors.humidity,
-                    progressValue: humidity / 100,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SensorGraphScreen(
+                            deviceId: _selectedDeviceId!,
+                            sensorType: 'humidity',
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildSensorCard(
+                      icon: Icons.cloud,
+                      iconColor: AppColors.humidity,
+                      iconBgColor: AppColors.humidityBackground,
+                      label: 'HUMIDITY',
+                      value: '$humidity',
+                      unit: '%',
+                      status: _getHumidityStatus(humidity),
+                      statusColor: _getHumidityStatusColor(humidity),
+                      progressColor: AppColors.humidity,
+                      progressValue: humidity / 100,
+                    ),
                   ),
                 ),
               ],
@@ -923,97 +1039,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final hasError = healthStatus == 'error';
         final isCritical = waterLevel < 20 && !hasError;
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: hasError
-                  ? AppColors.error.withOpacity(0.5)
-                  : isCritical
-                  ? AppColors.error.withOpacity(0.5)
-                  : AppColors.borderDark,
-            ),
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: hasError || isCritical
-                          ? AppColors.error.withOpacity(0.1)
-                          : AppColors.soilMoistureBackground,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      hasError ? Icons.error_outline : Icons.water,
-                      color: hasError || isCritical
-                          ? AppColors.error
-                          : AppColors.soilMoisture,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Water Tank Level',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          hasError
-                              ? 'SENSOR ERROR'
-                              : isCritical
-                              ? 'CRITICAL LOW'
-                              : 'Normal',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: hasError || isCritical
-                                ? AppColors.error
-                                : AppColors.primary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    hasError ? '--%' : '$waterLevel%',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: hasError ? AppColors.error : Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Progress Bar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: hasError ? 0 : waterLevel / 100,
-                  backgroundColor: AppColors.backgroundDark,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    hasError || isCritical
-                        ? AppColors.error
-                        : AppColors.soilMoisture,
-                  ),
-                  minHeight: 8,
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SensorGraphScreen(
+                  deviceId: _selectedDeviceId!,
+                  sensorType: 'waterLevel',
                 ),
               ),
-            ],
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: hasError
+                    ? AppColors.error.withOpacity(0.5)
+                    : isCritical
+                    ? AppColors.error.withOpacity(0.5)
+                    : AppColors.borderDark,
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasError || isCritical
+                            ? AppColors.error.withOpacity(0.1)
+                            : AppColors.soilMoistureBackground,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        hasError ? Icons.error_outline : Icons.water,
+                        color: hasError || isCritical
+                            ? AppColors.error
+                            : AppColors.soilMoisture,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Water Tank Level',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            hasError
+                                ? 'SENSOR ERROR'
+                                : isCritical
+                                ? 'CRITICAL LOW'
+                                : 'Normal',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: hasError || isCritical
+                                  ? AppColors.error
+                                  : AppColors.primary,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      hasError ? '--%' : '$waterLevel%',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: hasError ? AppColors.error : Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Progress Bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: hasError ? 0 : waterLevel / 100,
+                    backgroundColor: AppColors.backgroundDark,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      hasError || isCritical
+                          ? AppColors.error
+                          : AppColors.soilMoisture,
+                    ),
+                    minHeight: 8,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

@@ -11,6 +11,7 @@ import 'preferences/language_screen.dart';
 import 'preferences/alert_tone_screen.dart';
 import 'preferences/change_password_screen.dart';
 import 'logout/logout_dialog.dart';
+import '../crop_management/crop_list_screen.dart';
 
 /// ------------------------------------------------------------
 /// MORE SCREEN (SETTINGS HUB)
@@ -74,6 +75,13 @@ class _MoreScreenState extends State<MoreScreen> {
                   title: 'Farm Details',
                   subtitle: 'Manage farm information',
                   onTap: () => _navigateTo(const FarmDetailsScreen()),
+                ),
+                _MenuItem(
+                  icon: Icons.eco_outlined,
+                  iconColor: AppColors.soilMoisture,
+                  title: 'Crop Management',
+                  subtitle: 'Manage farm information',
+                  onTap: () => _navigateTo(const CropListScreen()),
                 ),
                 _MenuItem(
                   icon: Icons.notifications_outlined,

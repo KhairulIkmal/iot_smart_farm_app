@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'dart:async';
 
 import '../../core/theme.dart';
+import '../analytics/sensor_graph_screen.dart';
 
 /// ------------------------------------------------------------
 /// SENSORS SCREEN
@@ -294,18 +295,30 @@ class _SensorsScreenState extends State<SensorsScreen> {
         final status = _getSoilStatus(soilMoisture);
         final statusColor = _getSoilStatusColor(soilMoisture);
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: hasError
-                  ? AppColors.error.withOpacity(0.5)
-                  : AppColors.borderDark,
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SensorGraphScreen(
+                  deviceId: _selectedDeviceId!,
+                  sensorType: 'soil',
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: hasError
+                    ? AppColors.error.withOpacity(0.5)
+                    : AppColors.borderDark,
+              ),
             ),
-          ),
-          child: Column(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
@@ -453,6 +466,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
               ),
             ],
           ),
+        ),
         );
       },
     );
@@ -490,14 +504,26 @@ class _SensorsScreenState extends State<SensorsScreen> {
         final tempStatus = _getTempStatus(temp);
         final tempStatusColor = _getTempStatusColor(temp);
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderDark),
-          ),
-          child: Column(
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SensorGraphScreen(
+                  deviceId: _selectedDeviceId!,
+                  sensorType: 'temp',
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
@@ -674,6 +700,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
               ),
             ],
           ),
+        ),
         );
       },
     );
@@ -714,18 +741,30 @@ class _SensorsScreenState extends State<SensorsScreen> {
         final hasError = healthStatus == 'error';
         final isLow = waterLevel < 30 && !hasError;
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: hasError || isLow
-                  ? AppColors.error.withOpacity(0.5)
-                  : AppColors.borderDark,
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SensorGraphScreen(
+                  deviceId: _selectedDeviceId!,
+                  sensorType: 'waterLevel',
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: hasError || isLow
+                    ? AppColors.error.withOpacity(0.5)
+                    : AppColors.borderDark,
+              ),
             ),
-          ),
-          child: Column(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
@@ -865,6 +904,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
               ),
             ],
           ),
+        ),
         );
       },
     );
@@ -906,18 +946,30 @@ class _SensorsScreenState extends State<SensorsScreen> {
         final status = _getPhStatus(ph);
         final statusColor = _getPhStatusColor(ph);
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: hasError
-                  ? AppColors.error.withOpacity(0.5)
-                  : AppColors.borderDark,
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SensorGraphScreen(
+                  deviceId: _selectedDeviceId!,
+                  sensorType: 'ph',
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: hasError
+                    ? AppColors.error.withOpacity(0.5)
+                    : AppColors.borderDark,
+              ),
             ),
-          ),
-          child: Column(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
@@ -1053,6 +1105,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
               ),
             ],
           ),
+        ),
         );
       },
     );
