@@ -3,11 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/theme.dart';
 import 'auth/login_screen.dart';
 import 'features/navigation/main_navigation.dart';
 import 'features/crop_management/crop_list_screen.dart';
+import 'services/notifications/monitoring_manager.dart';
+import 'services/notifications/fcm_service.dart';
+
+// Background message handler - must be top-level function
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  await firebaseMessagingBackgroundHandler(message);
+}
 
 void main() async {
   // Ensure Flutter bindings are initialized
@@ -15,6 +25,9 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp();
+
+  // Initialize FCM background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // Lock orientation to portrait
   await SystemChrome.setPreferredOrientations([
@@ -52,10 +65,19 @@ class IoTSmartFarmApp extends StatelessWidget {
 
 /// ------------------------------------------------------------
 /// AUTH WRAPPER
-/// Only listens to Firebase authentication state
+/// Listens to Firebase authentication state and manages monitoring
 /// ------------------------------------------------------------
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  final MonitoringManager _monitoringManager = MonitoringManager();
+  final FCMService _fcmService = FCMService();
+  bool _fcmInitialized = false;
 
   @override
   Widget build(BuildContext context) {
@@ -69,18 +91,35 @@ class AuthWrapper extends StatelessWidget {
 
         // Error
         if (snapshot.hasError) {
+          _monitoringManager.stopMonitoring();
           return const AuthErrorScreen();
         }
 
         // Logged in
         if (snapshot.hasData && snapshot.data != null) {
+          // Initialize FCM once when user is authenticated
+          if (!_fcmInitialized) {
+            _fcmInitialized = true;
+            _fcmService.initialize();
+          }
+
+          // Start monitoring when user is authenticated
+          _monitoringManager.startMonitoring();
           return const PostLoginRouter();
         }
 
-        // Not logged in
+        // Not logged in - stop monitoring and reset FCM flag
+        _fcmInitialized = false;
+        _monitoringManager.stopMonitoring();
         return const LoginScreen();
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _monitoringManager.stopMonitoring();
+    super.dispose();
   }
 }
 

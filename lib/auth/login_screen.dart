@@ -47,9 +47,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!result['success']) {
         _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+      } else {
+        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       }
-      // ✅ DO NOTHING on success
-      // AuthWrapper in main.dart will auto redirect
     } catch (_) {
       _showErrorSnackBar(AppStrings.somethingWentWrong);
     } finally {
@@ -70,8 +73,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!result['success']) {
         _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+      } else {
+        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       }
-      // ✅ DO NOTHING on success
     } catch (_) {
       _showErrorSnackBar(AppStrings.somethingWentWrong);
     } finally {

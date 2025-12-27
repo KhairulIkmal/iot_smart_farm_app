@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/theme.dart';
+import '../navigation/main_navigation.dart';
 
 /// ------------------------------------------------------------
 /// AI CHATBOT SCREEN (AI ASSIST TAB)
@@ -36,6 +37,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     'Cucumber',
     'Pepper',
     'Onion',
+    'Spinach',
   ];
 
   final Map<String, Map<String, dynamic>> _cropDatabase = {
@@ -149,6 +151,16 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'tip':
           'Onions need consistent moisture early on. Reduce watering as bulbs mature.',
     },
+    'Spinach': {
+      'moistureMin': 60,
+      'moistureMax': 75,
+      'phMin': 6.5,
+      'phMax': 7.5,
+      'bestTime': '05:30 AM',
+      'frequency': 'Every 2 Days',
+      'tip':
+          'Spinach prefers cool, moist conditions. Mulch to keep soil cool and retain moisture.',
+    },
   };
 
   @override
@@ -171,9 +183,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
     if (crops.docs.isNotEmpty) {
       final cropData = crops.docs.first.data();
+      final cropType = cropData['crop_type'] ?? 'Tomato';
+
       setState(() {
         _userCropId = crops.docs.first.id;
-        _selectedCrop = cropData['crop_type'] ?? 'Tomato';
+        // Only set the crop if it exists in our list, otherwise default to Tomato
+        _selectedCrop = _cropTypes.contains(cropType) ? cropType : 'Tomato';
         _recommendations = _cropDatabase[_selectedCrop];
       });
     }
@@ -243,17 +258,42 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
           ],
         ),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderDark),
-          ),
-          child: const Icon(
-            Icons.help_outline,
-            color: AppColors.textSecondaryDark,
-            size: 22,
+        GestureDetector(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'AI Chat feature is coming soon! Stay tuned for intelligent farming assistance.',
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: AppColors.info,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: const Icon(
+              Icons.smart_toy_outlined,
+              color: AppColors.primary,
+              size: 22,
+            ),
           ),
         ),
       ],
@@ -604,16 +644,33 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       }
 
       if (mounted) {
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Settings applied to auto-irrigation'),
+            content: const Text('Settings applied! Redirecting to irrigation...'),
             backgroundColor: AppColors.primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
+            duration: const Duration(seconds: 2),
           ),
         );
+
+        // Wait a moment for user to see the message, then navigate
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Navigate to Main Navigation and switch to Irrigation tab (index 2) with Auto tab (index 1)
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const MainNavigation(
+                initialIndex: 2, // Irrigation tab
+                irrigationTabIndex: 1, // Auto tab (0 = Manual, 1 = Auto)
+              ),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

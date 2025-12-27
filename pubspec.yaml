@@ -27,6 +27,19 @@ dependencies:
   # ⚡ Realtime Database (sensor readings, commands)
   firebase_database: ^11.1.4
 
+  # 📁 Storage (profile photos)
+  firebase_storage: ^12.3.4
+
+  # 🔔 Push Notifications
+  firebase_messaging: ^15.1.3
+  flutter_local_notifications: ^18.0.1
+
+  # 📸 Image Picker (camera & gallery)
+  image_picker: ^1.0.4
+
+  # ✂️ Image Cropper (crop profile photos)
+  image_cropper: ^8.0.2
+
   # 🗺 Map & Location (Farm Location Screen)
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
@@ -41,10 +54,22 @@ dependencies:
   # 🕐 Date & Time Formatting
   intl: ^0.18.0
 
+  # 🔊 Sound Effects
+  audioplayers: ^6.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "app_icon.png"
+  adaptive_icon_background: "#2196F3"
+  adaptive_icon_foreground: "app_icon.png"
+  remove_alpha_ios: true

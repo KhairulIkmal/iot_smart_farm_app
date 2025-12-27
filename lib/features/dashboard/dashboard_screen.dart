@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme.dart';
 import '../../services/weather_service.dart';
+import '../../services/notifications/notification_service.dart';
 import '../weather/weather_forecast_screen.dart';
 import '../analytics/sensor_graph_screen.dart';
 import '../more/notifications/notifications_screen.dart';
@@ -52,6 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Weather data
   WeatherData? _weatherData;
+  WeatherForecast? _weatherForecast;
   bool _isLoadingWeather = true;
   String? _weatherError;
 
@@ -69,8 +71,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     try {
       final weather = await _weatherService.getCurrentWeather();
+      final forecast = await _weatherService.getWeatherForecast();
       setState(() {
         _weatherData = weather;
+        _weatherForecast = forecast;
         _isLoadingWeather = false;
       });
     } catch (e) {
@@ -244,8 +248,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Firebase server timestamp is already in milliseconds, don't multiply
           final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(lastSeen);
           final diff = DateTime.now().difference(lastSeenDate);
-          // Consider online if last seen within 5 minutes
-          isOnline = diff.inMinutes < 5;
+          // Consider online if last seen within 10 seconds (2s heartbeat + 8s buffer)
+          isOnline = diff.inSeconds < 10;
         }
 
         return _buildStatusBadge(isOnline);
@@ -346,45 +350,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        // Notification Button
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const NotificationsScreen(),
+        // Notification Button with dynamic badge
+        StreamBuilder<int>(
+          stream: NotificationService().getUnreadCountStream(),
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data ?? 0;
+
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationsScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceDark,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderDark),
+                ),
+                child: Stack(
+                  children: [
+                    const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.error,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             );
           },
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderDark),
-            ),
-            child: Stack(
-              children: [
-                const Icon(
-                  Icons.notifications_outlined,
-                  color: Colors.white,
-                  size: 22,
-                ),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.error,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ],
     );
@@ -459,6 +471,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final weather = _weatherData!;
+
+    // Get next hour forecast
+    String? nextHourCondition;
+    String? nextHourDescription;
+    if (_weatherForecast != null && _weatherForecast!.list.isNotEmpty) {
+      final nextHour = _weatherForecast!.list.first;
+      if (nextHour.weather.isNotEmpty) {
+        nextHourCondition = nextHour.weather.first.main;
+        nextHourDescription = nextHour.weather.first.description;
+      }
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -475,95 +499,160 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.borderDark),
         ),
-        child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      _getWeatherIcon(weather.main),
-                      color: _getWeatherIconColor(weather.main),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      weather.description.isNotEmpty
-                          ? weather.description[0].toUpperCase() +
-                                weather.description.substring(1)
-                          : weather.main,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.7),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _getWeatherIconFromDescription(
+                              weather.description.isNotEmpty
+                                  ? weather.description
+                                  : weather.main,
+                            ),
+                            color: _getWeatherIconColorFromDescription(
+                              weather.description.isNotEmpty
+                                  ? weather.description
+                                  : weather.main,
+                            ),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            weather.description.isNotEmpty
+                                ? weather.description[0].toUpperCase() +
+                                      weather.description.substring(1)
+                                : weather.main,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  DateFormat('h:mm a').format(DateTime.now()),
-                  style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                      const SizedBox(height: 8),
+                      Text(
+                        DateFormat('h:mm a').format(DateTime.now()),
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              weather.cityName,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.5),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.air,
+                            size: 14,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${weather.windSpeed.toStringAsFixed(1)} km/h',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 14,
-                      color: Colors.white.withOpacity(0.5),
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        weather.cityName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.air,
-                      size: 14,
-                      color: Colors.white.withOpacity(0.5),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${weather.windSpeed.toStringAsFixed(1)} km/h',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.5),
-                      ),
-                    ),
-                  ],
+                // Time of Day Icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: _getTimeOfDayColor().withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    _getTimeOfDayIcon(),
+                    size: 48,
+                    color: _getTimeOfDayColor(),
+                  ),
                 ),
               ],
             ),
-          ),
-          // Time of Day Icon
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: _getTimeOfDayColor().withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(
-              _getTimeOfDayIcon(),
-              size: 48,
-              color: _getTimeOfDayColor(),
-            ),
-          ),
-        ],
-      ),
+            // Next Hour Forecast
+            if (nextHourCondition != null && nextHourDescription != null)
+              Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundDark,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          size: 14,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Next hour:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          _getWeatherIcon(nextHourCondition),
+                          color: _getWeatherIconColor(nextHourCondition),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            nextHourDescription.isNotEmpty
+                                ? nextHourDescription[0].toUpperCase() +
+                                    nextHourDescription.substring(1)
+                                : nextHourCondition,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -606,6 +695,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  /// Get detailed weather icon from description (supports rain intensity)
+  IconData _getWeatherIconFromDescription(String condition) {
+    final conditionLower = condition.toLowerCase();
+
+    // Check for thunderstorm with rain (cloud + lightning)
+    if (conditionLower.contains('thunder') || conditionLower.contains('storm')) {
+      return Icons.flash_on; // lightning bolt for thunderstorms
+    }
+
+    // Heavy intensity rain (more dramatic icon)
+    if (conditionLower.contains('heavy') || conditionLower.contains('extreme')) {
+      return Icons.thunderstorm; // cloud with heavy rain
+    }
+
+    // Moderate rain
+    if (conditionLower.contains('moderate rain') ||
+        (conditionLower.contains('rain') &&
+            !conditionLower.contains('light') &&
+            !conditionLower.contains('drizzle'))) {
+      return Icons.grain; // rain drops for moderate rain
+    }
+
+    // Light rain or drizzle (single droplet)
+    if (conditionLower.contains('drizzle') || conditionLower.contains('light')) {
+      return Icons.water_drop; // single droplet for light rain
+    }
+
+    // Clear sky
+    if (conditionLower.contains('clear')) {
+      return Icons.wb_sunny;
+    }
+
+    // Clouds
+    if (conditionLower.contains('cloud')) {
+      return Icons.cloud;
+    }
+
+    // Snow
+    if (conditionLower.contains('snow')) {
+      return Icons.ac_unit;
+    }
+
+    // Mist/Fog/Haze
+    if (conditionLower.contains('mist') ||
+        conditionLower.contains('fog') ||
+        conditionLower.contains('haze')) {
+      return Icons.blur_on;
+    }
+
+    // Default fallback
+    return Icons.wb_cloudy;
+  }
+
+  /// Get detailed weather icon color from description
+  Color _getWeatherIconColorFromDescription(String condition) {
+    final conditionLower = condition.toLowerCase();
+
+    // Thunderstorm - purple/violet (most severe)
+    if (conditionLower.contains('thunder') || conditionLower.contains('storm')) {
+      return Colors.deepPurple.shade300;
+    }
+
+    // Heavy/extreme rain - dark blue (very intense)
+    if (conditionLower.contains('heavy') || conditionLower.contains('extreme')) {
+      return Colors.blue.shade700;
+    }
+
+    // Moderate rain - medium blue
+    if (conditionLower.contains('moderate') ||
+        (conditionLower.contains('rain') &&
+            !conditionLower.contains('light') &&
+            !conditionLower.contains('drizzle'))) {
+      return Colors.blue.shade400;
+    }
+
+    // Light rain/drizzle - light blue (gentle)
+    if (conditionLower.contains('drizzle') || conditionLower.contains('light')) {
+      return Colors.lightBlue.shade300;
+    }
+
+    // Clear sky - amber/yellow
+    if (conditionLower.contains('clear')) {
+      return Colors.amber;
+    }
+
+    // Clouds - grey
+    if (conditionLower.contains('cloud')) {
+      return Colors.grey;
+    }
+
+    // Snow - light blue
+    if (conditionLower.contains('snow')) {
+      return Colors.lightBlue;
+    }
+
+    // Mist/Fog - grey
+    if (conditionLower.contains('mist') ||
+        conditionLower.contains('fog') ||
+        conditionLower.contains('haze')) {
+      return Colors.grey.shade400;
+    }
+
+    // Default
+    return Colors.grey;
   }
 
   /// Get icon based on time of day

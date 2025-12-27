@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'dart:io';
 
 import '../../../core/theme.dart';
 import '../../../widgets/index.dart';
@@ -24,6 +28,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -33,6 +39,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   bool _isEditing = false;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
+  String? _photoURL;
 
   @override
   void initState() {
@@ -62,6 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _nameController.text = data['name'] ?? data['displayName'] ?? '';
         _phoneController.text = data['phone'] ?? '';
         _farmNameController.text = data['farm_name'] ?? '';
+        _photoURL = data['photoURL'];
       }
     } finally {
       setState(() => _isLoading = false);
@@ -116,6 +125,260 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } finally {
       setState(() => _isSaving = false);
+    }
+  }
+
+  /// ------------------------------------------------
+  /// PHOTO UPLOAD - SHOW BOTTOM SHEET
+  /// ------------------------------------------------
+  Future<void> _showPhotoOptions() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderDark,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Profile Photo',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.camera_alt, color: AppColors.primary),
+              ),
+              title: const Text(
+                'Take Photo',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.photo_library, color: AppColors.primary),
+              ),
+              title: const Text(
+                'Choose from Gallery',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            if (_photoURL != null)
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.delete, color: AppColors.error),
+                ),
+                title: const Text(
+                  'Remove Photo',
+                  style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removePhoto();
+                },
+              ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// PICK IMAGE FROM CAMERA OR GALLERY
+  /// ------------------------------------------------
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      // Step 1: Pick image from camera or gallery
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 100, // Keep high quality before cropping
+      );
+
+      if (image == null) return;
+
+      // Step 2: Crop the image
+      final CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: image.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressQuality: 85,
+        maxWidth: 512,
+        maxHeight: 512,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Profile Photo',
+            toolbarColor: AppColors.surfaceDark,
+            toolbarWidgetColor: Colors.white,
+            backgroundColor: AppColors.backgroundDark,
+            activeControlsWidgetColor: AppColors.primary,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true,
+            hideBottomControls: false,
+          ),
+          IOSUiSettings(
+            title: 'Crop Profile Photo',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+            aspectRatioPickerButtonHidden: true,
+          ),
+        ],
+      );
+
+      // If user cancels cropping, return
+      if (croppedFile == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Step 3: Upload to Firebase Storage
+      final storageRef = _storage.ref().child('profile_photos/${user.uid}');
+      await storageRef.putFile(File(croppedFile.path));
+
+      // Get download URL
+      final downloadURL = await storageRef.getDownloadURL();
+
+      // Update Firestore
+      await _firestore.collection('users').doc(user.uid).set({
+        'photoURL': downloadURL,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      setState(() {
+        _photoURL = downloadURL;
+        _isUploadingPhoto = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Profile photo updated'),
+              ],
+            ),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading photo: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// ------------------------------------------------
+  /// REMOVE PHOTO
+  /// ------------------------------------------------
+  Future<void> _removePhoto() async {
+    setState(() => _isUploadingPhoto = true);
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Delete from Storage
+      try {
+        final storageRef = _storage.ref().child('profile_photos/${user.uid}');
+        await storageRef.delete();
+      } catch (_) {
+        // Photo might not exist in storage
+      }
+
+      // Update Firestore
+      await _firestore.collection('users').doc(user.uid).set({
+        'photoURL': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      setState(() {
+        _photoURL = null;
+        _isUploadingPhoto = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Profile photo removed'),
+              ],
+            ),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error removing photo: $e'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -246,22 +509,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             color: AppColors.primary.withOpacity(0.2),
             shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : 'U',
-              style: const TextStyle(
-                fontSize: 40,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
+            border: Border.all(
+              color: AppColors.primary.withOpacity(0.3),
+              width: 2,
             ),
           ),
+          child: _isUploadingPhoto
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    strokeWidth: 3,
+                  ),
+                )
+              : _photoURL != null
+                  ? ClipOval(
+                      child: Image.network(
+                        _photoURL!,
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
         ),
-        if (_isEditing)
-          Positioned(
-            right: 0,
-            bottom: 0,
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: GestureDetector(
+            onTap: _isUploadingPhoto ? null : _showPhotoOptions,
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -276,6 +572,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
+        ),
       ],
     );
   }

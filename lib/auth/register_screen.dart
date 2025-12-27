@@ -59,9 +59,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!result['success']) {
         _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+      } else {
+        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       }
-      // ✅ SUCCESS → DO NOTHING
-      // AuthWrapper in main.dart will handle navigation
     } catch (_) {
       _showErrorSnackBar(AppStrings.somethingWentWrong);
     } finally {
@@ -82,8 +85,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!result['success']) {
         _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+      } else {
+        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       }
-      // ✅ SUCCESS → DO NOTHING
     } catch (_) {
       _showErrorSnackBar(AppStrings.somethingWentWrong);
     } finally {
@@ -246,8 +253,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: _inputDecoration('farmer@example.com', Icons.email_outlined),
       validator: (value) {
         if (value == null || value.isEmpty) return AppStrings.fieldRequired;
-        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value))
+        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
           return AppStrings.invalidEmail;
+        }
         return null;
       },
     );

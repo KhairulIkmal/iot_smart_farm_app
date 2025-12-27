@@ -7,7 +7,12 @@
       "Bash(flutter clean:*)",
       "Bash(timeout /t 1)",
       "Bash(findstr:*)",
-      "Bash(timeout /t 2)"
+      "Bash(timeout /t 2)",
+      "Bash(flutter build:*)",
+      "Bash(adb:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(dart run:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import '../../core/theme.dart';
+import '../../services/notifications/notification_service.dart';
 import '../more/notifications/notifications_screen.dart';
 
 /// ------------------------------------------------------------
@@ -40,7 +43,9 @@ import '../more/notifications/notifications_screen.dart';
 /// - Auto: Automation Rules (thresholds)
 /// ------------------------------------------------------------
 class IrrigationScreen extends StatefulWidget {
-  const IrrigationScreen({super.key});
+  final int initialTabIndex;
+
+  const IrrigationScreen({super.key, this.initialTabIndex = 0});
 
   @override
   State<IrrigationScreen> createState() => _IrrigationScreenState();
@@ -53,6 +58,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   String? _selectedDeviceId;
   String? _selectedCropId;
@@ -69,14 +75,50 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
+    );
+    _tabController.addListener(_onTabChanged);
     _loadUserDevice();
+  }
+
+  void _onTabChanged() {
+    // Don't automatically change mode when switching tabs
+    // Manual mode is set when user clicks pump start/stop button
+    // Auto mode is set when user clicks "Apply to Auto-Irrigation" button
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
+  }
+
+  /// Play sound effect and haptic feedback for button press
+  void _playSound(bool isStarting) {
+    print('🔊 Playing haptic feedback: ${isStarting ? "START (heavy)" : "STOP (medium)"}');
+
+    // Multiple vibrations to make it very noticeable
+    if (isStarting) {
+      // Strong triple vibration for START
+      HapticFeedback.heavyImpact();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        HapticFeedback.heavyImpact();
+      });
+      Future.delayed(const Duration(milliseconds: 200), () {
+        HapticFeedback.heavyImpact();
+      });
+    } else {
+      // Double vibration for STOP
+      HapticFeedback.mediumImpact();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        HapticFeedback.mediumImpact();
+      });
+    }
   }
 
   Future<void> _loadUserDevice() async {
@@ -180,28 +222,52 @@ class _IrrigationScreenState extends State<IrrigationScreen>
               color: Colors.white,
             ),
           ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NotificationsScreen(),
+          StreamBuilder<int>(
+            stream: NotificationService().getUnreadCountStream(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDark,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderDark),
+                  ),
+                  child: Stack(
+                    children: [
+                      const Icon(
+                        Icons.notifications_outlined,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               );
             },
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
-              ),
-              child: const Icon(
-                Icons.notifications_outlined,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
           ),
         ],
       ),
@@ -300,7 +366,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             final lastSeen = data['lastSeen'] as int?;
             if (lastSeen != null) {
               final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-                lastSeen * 1000,
+                lastSeen,
               );
               isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
             }
@@ -683,6 +749,10 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
           // Save Button
           _buildSaveButton(),
+          const SizedBox(height: 12),
+
+          // Turn Off Auto Mode Button
+          _buildTurnOffAutoButton(),
         ],
       ),
     );
@@ -713,7 +783,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             final lastSeen = data['lastSeen'] as int?;
             if (lastSeen != null) {
               final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-                lastSeen * 1000,
+                lastSeen,
               );
               isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
             }
@@ -1343,6 +1413,88 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     );
   }
 
+  Widget _buildTurnOffAutoButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton(
+        onPressed: _isSaving ? null : _turnOffAutoMode,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: BorderSide(color: AppColors.error),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: _isSaving
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.power_settings_new, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Turn Off Auto-Irrigation',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Future<void> _turnOffAutoMode() async {
+    if (_selectedDeviceId == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      // Switch mode to manual in RTDB
+      await _rtdb.ref('commands/$_selectedDeviceId/mode').set('manual');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.power_settings_new, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Auto-irrigation turned off'),
+              ],
+            ),
+            backgroundColor: AppColors.surfaceDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to turn off auto mode'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
+
   Widget _buildNoDeviceCard() {
     return Container(
       padding: const EdgeInsets.all(32),
@@ -1393,16 +1545,21 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     try {
       final newState = _isPumpActive ? 'off' : 'on';
 
+      // Play sound effect (non-blocking)
+      _playSound(newState == 'on');
+
       // Send command to ESP32 via RTDB
-      await _rtdb.ref('commands/$_selectedDeviceId').set({
+      // When user manually controls pump, switch to manual mode
+      await _rtdb.ref('commands/$_selectedDeviceId').update({
         'pump': newState,
+        'mode': 'manual', // Switch to manual mode when user controls pump
         'timestamp': ServerValue.timestamp,
         'source': 'app',
       });
 
-      setState(() {
-        _isPumpActive = !_isPumpActive;
-      });
+      // Don't manually update _isPumpActive here
+      // Let the RTDB listener in _loadPumpStatus() handle it
+      // This prevents race conditions and blinking
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1410,14 +1567,14 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             content: Row(
               children: [
                 Icon(
-                  _isPumpActive ? Icons.check_circle : Icons.stop_circle,
+                  newState == 'on' ? Icons.check_circle : Icons.stop_circle,
                   color: Colors.white,
                 ),
                 const SizedBox(width: 12),
-                Text(_isPumpActive ? 'Pump started' : 'Pump stopped'),
+                Text(newState == 'on' ? 'Pump command sent' : 'Pump stop command sent'),
               ],
             ),
-            backgroundColor: _isPumpActive
+            backgroundColor: newState == 'on'
                 ? AppColors.primary
                 : AppColors.surfaceDark,
             behavior: SnackBarBehavior.floating,
@@ -1445,7 +1602,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     }
   }
 
-  /// Save irrigation rules to Firestore
+  /// Save irrigation rules to Firestore and update mode in RTDB
   Future<void> _saveIrrigationRules() async {
     if (_selectedCropId == null || _selectedDeviceId == null) return;
 
@@ -1471,11 +1628,15 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
+      // Save rules to Firestore
       if (existing.docs.isNotEmpty) {
         await existing.docs.first.reference.update(ruleData);
       } else {
         await _firestore.collection('irrigation_rules').add(ruleData);
       }
+
+      // Update mode in commands path so ESP32 receives it via stream listener
+      await _rtdb.ref('commands/$_selectedDeviceId/mode').set('auto');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1484,7 +1645,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 12),
-                Text('Irrigation rules saved'),
+                Text('Auto-irrigation activated'),
               ],
             ),
             backgroundColor: AppColors.primary,

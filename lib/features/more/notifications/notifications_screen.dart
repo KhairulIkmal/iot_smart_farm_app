@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/theme.dart';
+import '../../../services/notifications/notification_service.dart';
+import '../../../services/notifications/models/notification_model.dart';
 
 /// ------------------------------------------------------------
 /// NOTIFICATIONS SCREEN
@@ -20,81 +20,130 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
+  final PageController _pageController = PageController();
+  final ScrollController _tabScrollController = ScrollController();
+  final ValueNotifier<int> _selectedFilterIndex = ValueNotifier<int>(0);
+  final List<String> _filters = ['All', 'Critical', 'Devices', 'Water', 'Crops', 'Weather', 'Archived'];
+  final List<GlobalKey> _tabKeys = List.generate(7, (index) => GlobalKey());
 
-  String _selectedFilter = 'All';
-  final List<String> _filters = ['All', 'Critical', 'Warnings', 'Archived'];
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _tabScrollController.dispose();
+    _selectedFilterIndex.dispose();
+    super.dispose();
+  }
 
-  // Sample notifications data (in production, fetch from Firestore)
-  final List<_NotificationItem> _notifications = [
-    _NotificationItem(
-      id: '1',
-      type: NotificationType.critical,
-      title: 'Water Level Critical',
-      message:
-          'Main tank is below 10%. Pump has been auto-stopped to prevent dry running.',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
-      actions: ['Refill Tank', 'Ignore'],
-      isRead: false,
-    ),
-    _NotificationItem(
-      id: '2',
-      type: NotificationType.warning,
-      title: 'Sensor Disconnected',
-      message:
-          'Greenhouse B - Humidity Sensor is not responding. Check power supply.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 1)),
-      isRead: false,
-    ),
-    _NotificationItem(
-      id: '3',
-      type: NotificationType.warning,
-      title: 'High Temp Warning',
-      message:
-          'Zone 3 temperature is 2°C above set threshold. Ventilation activated.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      isRead: true,
-    ),
-    _NotificationItem(
-      id: '4',
-      type: NotificationType.success,
-      title: 'Irrigation Complete',
-      message:
-          'Scheduled cycle for Sector 4 finished successfully. 450L water used.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 14)),
-      isRead: true,
-    ),
-    _NotificationItem(
-      id: '5',
-      type: NotificationType.info,
-      title: 'Firmware Update',
-      message:
-          'Main controller updated to v2.4.1. System rebooted successfully.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 18)),
-      isRead: true,
-    ),
-  ];
+  void _scrollToSelectedTab(int index) {
+    if (!_tabScrollController.hasClients) return;
+
+    // Get the RenderBox of the selected tab
+    final tabKey = _tabKeys[index];
+    final context = tabKey.currentContext;
+    if (context == null) return;
+
+    final RenderBox tabBox = context.findRenderObject() as RenderBox;
+    final tabPosition = tabBox.localToGlobal(Offset.zero);
+    final tabWidth = tabBox.size.width;
+
+    // Calculate scroll position to center the selected tab
+    final screenWidth = MediaQuery.of(this.context).size.width;
+    final scrollOffset = _tabScrollController.offset;
+    final targetOffset = scrollOffset + tabPosition.dx - (screenWidth / 2) + (tabWidth / 2);
+
+    // Animate to the calculated position
+    _tabScrollController.animateTo(
+      targetOffset.clamp(0.0, _tabScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final notificationsStream = _notificationService.getNotificationsStream();
+
+    if (notificationsStream == null) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundDark,
+        body: SafeArea(
+          child: Center(
+            child: Text(
+              'Please sign in to view notifications',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white.withOpacity(0.5),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            _buildHeader(),
-            const SizedBox(height: 16),
+        child: StreamBuilder<List<NotificationModel>>(
+          stream: notificationsStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-            // Filter Tabs
-            _buildFilterTabs(),
-            const SizedBox(height: 20),
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error loading notifications',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.5),
+                  ),
+                ),
+              );
+            }
 
-            // Notifications List
-            Expanded(child: _buildNotificationsList()),
-          ],
+            final notifications = snapshot.data ?? [];
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                _buildHeader(),
+                const SizedBox(height: 16),
+
+                // Filter Tabs (using ValueListenableBuilder for efficiency)
+                ValueListenableBuilder<int>(
+                  valueListenable: _selectedFilterIndex,
+                  builder: (context, selectedIndex, _) {
+                    return _buildStaticFilterTabs(notifications, selectedIndex);
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // PageView with swipe navigation
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _filters.length,
+                    onPageChanged: (index) {
+                      _selectedFilterIndex.value = index;
+                      // Auto-scroll to show the selected tab
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToSelectedTab(index);
+                      });
+                    },
+                    itemBuilder: (context, pageIndex) {
+                      return _buildNotificationsListContent(
+                        notifications,
+                        _filters[pageIndex],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -159,21 +208,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   /// ------------------------------------------------
   /// FILTER TABS
   /// ------------------------------------------------
-  Widget _buildFilterTabs() {
+  Widget _buildStaticFilterTabs(List<NotificationModel> notifications, int selectedIndex) {
     return SizedBox(
       height: 40,
       child: ListView.separated(
+        controller: _tabScrollController,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _filters.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final filter = _filters[index];
-          final isSelected = _selectedFilter == filter;
-          final count = _getCountForFilter(filter);
+          final isSelected = selectedIndex == index;
+          final count = _getCountForFilter(filter, notifications);
 
           return GestureDetector(
-            onTap: () => setState(() => _selectedFilter = filter),
+            key: _tabKeys[index],
+            onTap: () {
+              _selectedFilterIndex.value = index;
+              _pageController.animateToPage(
+                index,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+              _scrollToSelectedTab(index);
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
@@ -186,6 +245,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (_getFilterIcon(filter) != null) ...[
+                    Icon(
+                      _getFilterIcon(filter),
+                      size: 16,
+                      color: isSelected
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   Text(
                     filter,
                     style: TextStyle(
@@ -211,7 +280,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                       child: Text(
                         '$count',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -228,26 +297,62 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  int _getCountForFilter(String filter) {
+  int _getCountForFilter(String filter, List<NotificationModel> notifications) {
     switch (filter) {
       case 'Critical':
-        return _notifications
-            .where((n) => n.type == NotificationType.critical && !n.isRead)
+        return notifications
+            .where((n) =>
+                n.severity == NotificationSeverity.critical && !n.isRead)
             .length;
-      case 'Warnings':
-        return _notifications
-            .where((n) => n.type == NotificationType.warning && !n.isRead)
+      case 'Devices':
+        return notifications
+            .where((n) => n.category == NotificationCategory.device && !n.isRead)
+            .length;
+      case 'Water':
+        return notifications
+            .where(
+                (n) => n.category == NotificationCategory.irrigation && !n.isRead)
+            .length;
+      case 'Crops':
+        return notifications
+            .where((n) => n.category == NotificationCategory.crop && !n.isRead)
+            .length;
+      case 'Weather':
+        return notifications
+            .where((n) => n.category == NotificationCategory.weather && !n.isRead)
             .length;
       default:
         return 0;
     }
   }
 
+  IconData? _getFilterIcon(String filter) {
+    switch (filter) {
+      case 'Critical':
+        return Icons.error_outline;
+      case 'Devices':
+        return Icons.sensors;
+      case 'Water':
+        return Icons.water_drop;
+      case 'Crops':
+        return Icons.eco;
+      case 'Weather':
+        return Icons.wb_sunny;
+      case 'Archived':
+        return Icons.archive_outlined;
+      default:
+        return null; // 'All' has no icon
+    }
+  }
+
   /// ------------------------------------------------
-  /// NOTIFICATIONS LIST
+  /// NOTIFICATIONS LIST CONTENT
   /// ------------------------------------------------
-  Widget _buildNotificationsList() {
-    final filtered = _getFilteredNotifications();
+  Widget _buildNotificationsListContent(
+    List<NotificationModel> notifications,
+    String filter,
+  ) {
+    final filtered = _getFilteredNotifications(notifications, filter);
     final grouped = _groupByDate(filtered);
 
     if (filtered.isEmpty) {
@@ -302,27 +407,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  List<_NotificationItem> _getFilteredNotifications() {
-    switch (_selectedFilter) {
+  List<NotificationModel> _getFilteredNotifications(
+    List<NotificationModel> notifications,
+    String filter,
+  ) {
+    switch (filter) {
       case 'Critical':
-        return _notifications
-            .where((n) => n.type == NotificationType.critical)
+        return notifications
+            .where((n) => n.severity == NotificationSeverity.critical)
             .toList();
-      case 'Warnings':
-        return _notifications
-            .where((n) => n.type == NotificationType.warning)
+      case 'Devices':
+        return notifications
+            .where((n) => n.category == NotificationCategory.device)
+            .toList();
+      case 'Water':
+        return notifications
+            .where((n) => n.category == NotificationCategory.irrigation)
+            .toList();
+      case 'Crops':
+        return notifications
+            .where((n) => n.category == NotificationCategory.crop)
+            .toList();
+      case 'Weather':
+        return notifications
+            .where((n) => n.category == NotificationCategory.weather)
             .toList();
       case 'Archived':
-        return _notifications.where((n) => n.isRead).toList();
+        return notifications.where((n) => n.isRead).toList();
       default:
-        return _notifications;
+        return notifications;
     }
   }
 
-  Map<String, List<_NotificationItem>> _groupByDate(
-    List<_NotificationItem> items,
+  Map<String, List<NotificationModel>> _groupByDate(
+    List<NotificationModel> items,
   ) {
-    final Map<String, List<_NotificationItem>> grouped = {};
+    final Map<String, List<NotificationModel>> grouped = {};
 
     for (final item in items) {
       final now = DateTime.now();
@@ -347,178 +467,133 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return grouped;
   }
 
-  Widget _buildNotificationCard(_NotificationItem notification) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: notification.isRead
-              ? AppColors.borderDark
-              : _getTypeColor(notification.type).withOpacity(0.3),
+  Widget _buildNotificationCard(NotificationModel notification) {
+    return GestureDetector(
+      onTap: () async {
+        if (!notification.isRead) {
+          await _notificationService.markAsRead(notification.id);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: notification.isRead
+                ? AppColors.borderDark
+                : _getSeverityColor(notification.severity).withOpacity(0.3),
+          ),
         ),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            // Left color indicator
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: _getTypeColor(notification.type),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Left color indicator
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: _getSeverityColor(notification.severity),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
                 ),
               ),
-            ),
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header Row
-                    Row(
-                      children: [
-                        // Icon
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: _getTypeColor(
-                              notification.type,
-                            ).withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            _getTypeIcon(notification.type),
-                            color: _getTypeColor(notification.type),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Title & Time
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                notification.title,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          _formatTime(notification.timestamp),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withOpacity(0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    // Message
-                    Text(
-                      notification.message,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.7),
-                        height: 1.4,
-                      ),
-                    ),
-                    // Actions
-                    if (notification.actions != null &&
-                        notification.actions!.isNotEmpty) ...[
-                      const SizedBox(height: 14),
+              // Content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
                       Row(
-                        children: notification.actions!.map((action) {
-                          final isPrimary =
-                              notification.actions!.indexOf(action) == 0;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: isPrimary
-                                ? ElevatedButton(
-                                    onPressed: () =>
-                                        _handleAction(notification, action),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _getTypeColor(
-                                        notification.type,
-                                      ),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 8,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    child: Text(
-                                      action,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  )
-                                : TextButton(
-                                    onPressed: () =>
-                                        _handleAction(notification, action),
-                                    child: Text(
-                                      action,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: _getTypeColor(notification.type),
-                                      ),
-                                    ),
+                        children: [
+                          // Icon
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _getSeverityColor(
+                                notification.severity,
+                              ).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              _getCategoryIcon(notification.category),
+                              color: _getSeverityColor(notification.severity),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Title & Time
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  notification.title,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
                                   ),
-                          );
-                        }).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            _formatTime(notification.timestamp),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      // Message
+                      Text(
+                        notification.message,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.7),
+                          height: 1.4,
+                        ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Color _getTypeColor(NotificationType type) {
-    switch (type) {
-      case NotificationType.critical:
+  Color _getSeverityColor(NotificationSeverity severity) {
+    switch (severity) {
+      case NotificationSeverity.critical:
         return AppColors.error;
-      case NotificationType.warning:
+      case NotificationSeverity.warning:
         return AppColors.warning;
-      case NotificationType.success:
+      case NotificationSeverity.info:
         return AppColors.primary;
-      case NotificationType.info:
-        return AppColors.info;
     }
   }
 
-  IconData _getTypeIcon(NotificationType type) {
-    switch (type) {
-      case NotificationType.critical:
+  IconData _getCategoryIcon(NotificationCategory category) {
+    switch (category) {
+      case NotificationCategory.device:
+        return Icons.sensors;
+      case NotificationCategory.irrigation:
         return Icons.water_drop;
-      case NotificationType.warning:
-        return Icons.wifi_off;
-      case NotificationType.success:
-        return Icons.check_circle;
-      case NotificationType.info:
-        return Icons.system_update;
+      case NotificationCategory.weather:
+        return Icons.wb_sunny;
+      case NotificationCategory.crop:
+        return Icons.eco;
+      case NotificationCategory.system:
+        return Icons.settings;
     }
   }
 
@@ -533,59 +608,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  void _handleAction(_NotificationItem notification, String action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Action: $action'),
-        backgroundColor: AppColors.surfaceDark,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _markAllAsRead() {
-    setState(() {
-      for (final n in _notifications) {
-        n.isRead = true;
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text('All notifications marked as read'),
-          ],
+  void _markAllAsRead() async {
+    await _notificationService.markAllAsRead();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('All notifications marked as read'),
+            ],
+          ),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+      );
+    }
   }
-}
-
-/// Notification Type Enum
-enum NotificationType { critical, warning, success, info }
-
-/// Notification Item Model
-class _NotificationItem {
-  final String id;
-  final NotificationType type;
-  final String title;
-  final String message;
-  final DateTime timestamp;
-  final List<String>? actions;
-  bool isRead;
-
-  _NotificationItem({
-    required this.id,
-    required this.type,
-    required this.title,
-    required this.message,
-    required this.timestamp,
-    this.actions,
-    this.isRead = false,
-  });
 }

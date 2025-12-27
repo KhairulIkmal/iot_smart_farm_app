@@ -818,6 +818,10 @@ class _CropListScreenState extends State<CropListScreen> {
 
     if (confirm == true) {
       await _authService.signOut();
+      // Pop all routes back to AuthWrapper so it can redirect to LoginScreen
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     }
   }
 

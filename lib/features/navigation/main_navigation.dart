@@ -8,22 +8,35 @@ import '../chatbot/ai_chatbot_screen.dart';
 import '../more/more_screen.dart';
 
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+  final int initialIndex;
+  final int irrigationTabIndex;
+
+  const MainNavigation({
+    super.key,
+    this.initialIndex = 0,
+    this.irrigationTabIndex = 0,
+  });
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+  late List<Widget> _screens;
 
-  final List<Widget> _screens = const [
-    DashboardScreen(),
-    SensorsScreen(),
-    IrrigationScreen(),
-    AiChatbotScreen(),
-    MoreScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _screens = [
+      const DashboardScreen(),
+      const SensorsScreen(),
+      IrrigationScreen(initialTabIndex: widget.irrigationTabIndex),
+      const AiChatbotScreen(),
+      const MoreScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {

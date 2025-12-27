@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "237251653433-k5mbjpsui41vehfegdvjorr8t8l7h068.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.iot.smartfarm",
+            "certificate_hash": "f27c09a8d21cd42b17ac3f1dc8a5606be3a5967f"
+          }
+        },
+        {
           "client_id": "237251653433-hvp0doi2gtp0brfhuji0jopf43kjgs90.apps.googleusercontent.com",
           "client_type": 3
         }

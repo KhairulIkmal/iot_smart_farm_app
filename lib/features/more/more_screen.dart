@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/theme.dart';
+import '../../services/notifications/notification_service.dart';
 import 'profile/profile_screen.dart';
 import 'farm/farm_location_screen.dart';
 import 'farm/farm_details_screen.dart';
@@ -61,37 +62,44 @@ class _MoreScreenState extends State<MoreScreen> {
               // Farm Management Section
               _buildSectionTitle('Farm Management'),
               const SizedBox(height: 12),
-              _buildMenuCard([
-                _MenuItem(
-                  icon: Icons.location_on_outlined,
-                  iconColor: AppColors.primary,
-                  title: 'Farm Location',
-                  subtitle: 'Set location for weather',
-                  onTap: () => _navigateTo(const FarmLocationScreen()),
-                ),
-                _MenuItem(
-                  icon: Icons.agriculture_outlined,
-                  iconColor: AppColors.warning,
-                  title: 'Farm Details',
-                  subtitle: 'Manage farm information',
-                  onTap: () => _navigateTo(const FarmDetailsScreen()),
-                ),
-                _MenuItem(
-                  icon: Icons.eco_outlined,
-                  iconColor: AppColors.soilMoisture,
-                  title: 'Crop Management',
-                  subtitle: 'Manage farm information',
-                  onTap: () => _navigateTo(const CropListScreen()),
-                ),
-                _MenuItem(
-                  icon: Icons.notifications_outlined,
-                  iconColor: AppColors.error,
-                  title: 'Notifications',
-                  subtitle: 'Alerts and updates',
-                  badge: '3',
-                  onTap: () => _navigateTo(const NotificationsScreen()),
-                ),
-              ]),
+              StreamBuilder<int>(
+                stream: NotificationService().getUnreadCountStream(),
+                builder: (context, snapshot) {
+                  final unreadCount = snapshot.data ?? 0;
+
+                  return _buildMenuCard([
+                    _MenuItem(
+                      icon: Icons.location_on_outlined,
+                      iconColor: AppColors.primary,
+                      title: 'Farm Location',
+                      subtitle: 'Set location for weather',
+                      onTap: () => _navigateTo(const FarmLocationScreen()),
+                    ),
+                    _MenuItem(
+                      icon: Icons.agriculture_outlined,
+                      iconColor: AppColors.warning,
+                      title: 'Farm Details',
+                      subtitle: 'Manage farm information',
+                      onTap: () => _navigateTo(const FarmDetailsScreen()),
+                    ),
+                    _MenuItem(
+                      icon: Icons.eco_outlined,
+                      iconColor: AppColors.soilMoisture,
+                      title: 'Crop Management',
+                      subtitle: 'Manage farm information',
+                      onTap: () => _navigateTo(const CropListScreen()),
+                    ),
+                    _MenuItem(
+                      icon: Icons.notifications_outlined,
+                      iconColor: AppColors.error,
+                      title: 'Notifications',
+                      subtitle: 'Alerts and updates',
+                      badge: unreadCount > 0 ? '$unreadCount' : null,
+                      onTap: () => _navigateTo(const NotificationsScreen()),
+                    ),
+                  ]);
+                },
+              ),
               const SizedBox(height: 24),
 
               // Preferences Section
@@ -171,11 +179,13 @@ class _MoreScreenState extends State<MoreScreen> {
         String name = 'User';
         String farmName = 'My Farm';
         String email = user?.email ?? '';
+        String? photoURL;
 
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>?;
           name = data?['name'] ?? data?['displayName'] ?? 'User';
           farmName = data?['farm_name'] ?? 'My Farm';
+          photoURL = data?['photoURL'];
         }
 
         return GestureDetector(
@@ -196,17 +206,42 @@ class _MoreScreenState extends State<MoreScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.primary.withOpacity(0.2),
                     shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.3),
+                      width: 2,
                     ),
                   ),
+                  child: photoURL != null
+                      ? ClipOval(
+                          child: Image.network(
+                            photoURL,
+                            width: 70,
+                            height: 70,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

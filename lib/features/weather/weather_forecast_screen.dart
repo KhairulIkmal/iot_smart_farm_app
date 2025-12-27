@@ -20,6 +20,7 @@ class WeatherForecastScreen extends StatefulWidget {
 class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
   final WeatherService _weatherService = WeatherService();
   WeatherData? _weatherData;
+  WeatherForecast? _forecastData;
   bool _isLoading = true;
   String? _error;
 
@@ -37,8 +38,10 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
 
     try {
       final weather = await _weatherService.getCurrentWeather();
+      final forecast = await _weatherService.getWeatherForecast();
       setState(() {
         _weatherData = weather;
+        _forecastData = forecast;
         _isLoading = false;
       });
     } catch (e) {
@@ -196,7 +199,9 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
       child: Column(
         children: [
           Icon(
-            _getWeatherIcon(weather.main),
+            _getWeatherIconFromCondition(weather.description.isNotEmpty
+                ? weather.description
+                : weather.main),
             size: 80,
             color: Colors.white,
           ),
@@ -395,17 +400,8 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
   }
 
   Widget _buildHourlyForecast(WeatherData weather) {
-    // Simulate different weather conditions for hourly forecast
-    final hourlyConditions = [
-      weather.main, // Now - use current weather
-      weather.main,
-      weather.main.toLowerCase() == 'clear' ? 'Clouds' : weather.main,
-      'Clouds',
-      weather.main.toLowerCase() == 'rain' ? 'Rain' : 'Clouds',
-      weather.main,
-      weather.main.toLowerCase() == 'clear' ? 'Clear' : weather.main,
-      'Clouds',
-    ];
+    // Use real forecast data if available
+    final hourlyData = _forecastData?.list.take(8).toList() ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,25 +420,38 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
         const SizedBox(height: 12),
         SizedBox(
           height: 120,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: 8,
-            itemBuilder: (context, index) {
-              final hour = DateTime.now().add(Duration(hours: index));
-              final temp = weather.temperature + (index % 3 - 1);
-              final isNow = index == 0;
-              final condition = hourlyConditions[index];
+          child: hourlyData.isEmpty
+              ? Center(
+                  child: Text(
+                    'Hourly forecast unavailable',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 14,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: hourlyData.length,
+                  itemBuilder: (context, index) {
+                    final item = hourlyData[index];
+                    final isNow = index == 0;
+                    final condition = item.weather.isNotEmpty
+                        ? item.weather.first.main
+                        : 'Clear';
 
-              return _buildHourlyItem(
-                time: isNow ? 'Now' : DateFormat('h a').format(hour),
-                icon: _getWeatherIcon(condition),
-                iconColor: _getWeatherIconColorFromCondition(condition),
-                temperature: '${temp.round()}°',
-                isNow: isNow,
-              );
-            },
-          ),
+                    return _buildHourlyItem(
+                      time: isNow
+                          ? 'Now'
+                          : DateFormat('h a').format(item.dateTime),
+                      icon: _getWeatherIcon(condition),
+                      iconColor: _getWeatherIconColorFromCondition(condition),
+                      temperature: '${item.temperature.round()}°',
+                      isNow: isNow,
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -501,8 +510,8 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
   }
 
   Widget _buildWeeklyForecast(WeatherData weather) {
-    final days = ['Tomorrow', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-    final conditions = ['rain', 'clouds', 'clear', 'clouds', 'clear', 'rain', 'clear'];
+    // Use real daily summaries from forecast data
+    final dailySummaries = _forecastData?.getDailySummaries() ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,23 +528,48 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: days.length,
-          itemBuilder: (context, index) {
-            final high = weather.temperature + (index % 5);
-            final low = weather.temperature - (5 - index % 5);
+        dailySummaries.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Weekly forecast unavailable',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 14,
+                  ),
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: dailySummaries.length,
+                itemBuilder: (context, index) {
+                  final summary = dailySummaries[index];
+                  final dayName = index == 0
+                      ? 'Tomorrow'
+                      : DateFormat('EEE').format(summary.date);
 
-            return _buildWeeklyItem(
-              day: days[index],
-              condition: conditions[index],
-              highTemp: '${high.round()}°',
-              lowTemp: '${low.round()}°',
-            );
-          },
-        ),
+                  // Extract main weather condition from description
+                  String condition = 'clear';
+                  if (summary.description.toLowerCase().contains('rain') ||
+                      summary.description.toLowerCase().contains('drizzle')) {
+                    condition = 'rain';
+                  } else if (summary.description.toLowerCase().contains('cloud')) {
+                    condition = 'clouds';
+                  } else if (summary.description.toLowerCase().contains('clear') ||
+                      summary.description.toLowerCase().contains('sun')) {
+                    condition = 'clear';
+                  }
+
+                  return _buildWeeklyItem(
+                    day: dayName,
+                    condition: condition,
+                    highTemp: '${summary.tempMax.round()}°',
+                    lowTemp: '${summary.tempMin.round()}°',
+                  );
+                },
+              ),
       ],
     );
   }
@@ -599,75 +633,212 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
   IconData _getWeatherIcon(String main) {
     switch (main.toLowerCase()) {
       case 'clear':
-        return Icons.wb_sunny;
+        return Icons.wb_sunny; // bright sun for clear day
       case 'clouds':
-        return Icons.cloud;
+        return Icons.cloud; // cloud icon
       case 'rain':
+        return Icons.grain; // rain drops icon
       case 'drizzle':
-        return Icons.water_drop;
+        return Icons.water_drop; // single droplet
       case 'thunderstorm':
-        return Icons.flash_on;
+        return Icons.flash_on; // lightning bolt
       case 'snow':
-        return Icons.ac_unit;
+        return Icons.ac_unit; // snowflake
+      case 'mist':
+      case 'fog':
+      case 'haze':
+        return Icons.cloud_queue; // foggy/hazy
       default:
-        return Icons.wb_cloudy;
+        return Icons.wb_cloudy; // partly cloudy default
     }
   }
 
   IconData _getWeatherIconFromCondition(String condition) {
-    switch (condition.toLowerCase()) {
-      case 'clear':
-        return Icons.wb_sunny;
-      case 'clouds':
-        return Icons.cloud;
-      case 'rain':
-        return Icons.water_drop;
-      default:
-        return Icons.wb_cloudy;
+    final conditionLower = condition.toLowerCase();
+
+    // Check for thunderstorm with rain (cloud + lightning)
+    if (conditionLower.contains('thunder') || conditionLower.contains('storm')) {
+      return Icons.flash_on; // lightning bolt for thunderstorms
     }
+
+    // Heavy intensity rain (more dramatic icon)
+    if (conditionLower.contains('heavy') || conditionLower.contains('extreme')) {
+      return Icons.thunderstorm; // cloud with heavy rain
+    }
+
+    // Moderate rain
+    if (conditionLower.contains('moderate rain') ||
+        (conditionLower.contains('rain') &&
+         !conditionLower.contains('light') &&
+         !conditionLower.contains('drizzle'))) {
+      return Icons.grain; // rain drops for moderate rain
+    }
+
+    // Light rain or drizzle (single droplet)
+    if (conditionLower.contains('drizzle') ||
+        conditionLower.contains('light')) {
+      return Icons.water_drop; // single droplet for light rain
+    }
+
+    // Cloudy conditions
+    if (conditionLower.contains('cloud') || conditionLower.contains('overcast')) {
+      if (conditionLower.contains('partly') || conditionLower.contains('few')) {
+        return Icons.wb_cloudy; // partly cloudy
+      }
+      return Icons.cloud; // fully cloudy
+    }
+
+    // Clear/sunny
+    if (conditionLower.contains('clear') || conditionLower.contains('sunny')) {
+      return Icons.wb_sunny;
+    }
+
+    // Mist/fog/haze
+    if (conditionLower.contains('mist') || conditionLower.contains('fog') ||
+        conditionLower.contains('haze')) {
+      return Icons.cloud_queue;
+    }
+
+    // Snow
+    if (conditionLower.contains('snow')) {
+      return Icons.ac_unit;
+    }
+
+    // Default to partly cloudy
+    return Icons.wb_cloudy;
   }
 
   Color _getWeatherColorFromCondition(String condition) {
-    switch (condition.toLowerCase()) {
-      case 'clear':
-        return Colors.amber;
-      case 'clouds':
-        return Colors.grey;
-      case 'rain':
-        return AppColors.soilMoisture;
-      default:
-        return Colors.grey;
+    final conditionLower = condition.toLowerCase();
+
+    if (conditionLower.contains('thunder') || conditionLower.contains('storm')) {
+      return Colors.deepPurple; // purple for thunderstorms
     }
+    if (conditionLower.contains('rain') || conditionLower.contains('drizzle')) {
+      return Colors.blue; // blue for rain
+    }
+    if (conditionLower.contains('clear') || conditionLower.contains('sunny')) {
+      return Colors.amber; // yellow/amber for sunny
+    }
+    if (conditionLower.contains('cloud')) {
+      return Colors.grey; // grey for clouds
+    }
+    if (conditionLower.contains('snow')) {
+      return Colors.lightBlue; // light blue for snow
+    }
+
+    return Colors.grey.shade400; // default grey
   }
 
   Color _getWeatherIconColorFromCondition(String condition) {
-    switch (condition.toLowerCase()) {
-      case 'clear':
-        return Colors.amber;
-      case 'clouds':
-        return Colors.grey.shade400;
-      case 'rain':
-      case 'drizzle':
-        return AppColors.soilMoisture;
-      case 'thunderstorm':
-        return Colors.purple;
-      case 'snow':
-        return Colors.lightBlue;
-      default:
-        return Colors.grey;
+    final conditionLower = condition.toLowerCase();
+
+    // Thunderstorm - purple/violet (most severe)
+    if (conditionLower.contains('thunder') || conditionLower.contains('storm')) {
+      return Colors.deepPurple.shade300;
     }
+
+    // Heavy/extreme rain - dark blue (very intense)
+    if (conditionLower.contains('heavy') || conditionLower.contains('extreme')) {
+      return Colors.blue.shade700;
+    }
+
+    // Moderate rain - medium blue
+    if (conditionLower.contains('moderate') ||
+        (conditionLower.contains('rain') &&
+         !conditionLower.contains('light') &&
+         !conditionLower.contains('drizzle'))) {
+      return Colors.blue.shade400;
+    }
+
+    // Light rain/drizzle - light blue (gentle)
+    if (conditionLower.contains('drizzle') || conditionLower.contains('light')) {
+      return Colors.lightBlue.shade300;
+    }
+
+    // Clear/sunny - yellow/amber
+    if (conditionLower.contains('clear') || conditionLower.contains('sunny')) {
+      return Colors.amber.shade400;
+    }
+
+    // Clouds - grey
+    if (conditionLower.contains('cloud') || conditionLower.contains('overcast')) {
+      return Colors.grey.shade400;
+    }
+
+    // Snow - light blue
+    if (conditionLower.contains('snow')) {
+      return Colors.lightBlue.shade200;
+    }
+
+    // Mist/fog - grey
+    if (conditionLower.contains('mist') || conditionLower.contains('fog') ||
+        conditionLower.contains('haze')) {
+      return Colors.grey.shade300;
+    }
+
+    return Colors.grey.shade400; // default
   }
 
   String _getWeatherLabel(String condition) {
-    switch (condition.toLowerCase()) {
-      case 'clear':
-        return 'Sunny';
-      case 'clouds':
-        return 'Cloudy';
-      case 'rain':
-        return 'Rain likely';
-      default:
-        return 'Partly Cloudy';
+    final conditionLower = condition.toLowerCase();
+
+    // Thunderstorm
+    if (conditionLower.contains('thunder')) {
+      return 'Thunderstorms';
     }
+
+    // Rain variations
+    if (conditionLower.contains('heavy rain') || conditionLower.contains('moderate rain')) {
+      return 'Heavy rain';
+    }
+    if (conditionLower.contains('light rain')) {
+      return 'Light rain';
+    }
+    if (conditionLower.contains('rain')) {
+      return 'Rainy';
+    }
+
+    // Drizzle
+    if (conditionLower.contains('drizzle')) {
+      return 'Drizzle';
+    }
+
+    // Cloud variations
+    if (conditionLower.contains('overcast')) {
+      return 'Overcast';
+    }
+    if (conditionLower.contains('partly cloud') || conditionLower.contains('few cloud')) {
+      return 'Partly cloudy';
+    }
+    if (conditionLower.contains('cloud')) {
+      return 'Cloudy';
+    }
+
+    // Clear
+    if (conditionLower.contains('clear')) {
+      return 'Clear sky';
+    }
+    if (conditionLower.contains('sunny')) {
+      return 'Sunny';
+    }
+
+    // Snow
+    if (conditionLower.contains('snow')) {
+      return 'Snowy';
+    }
+
+    // Mist/fog
+    if (conditionLower.contains('mist') || conditionLower.contains('fog')) {
+      return 'Misty';
+    }
+    if (conditionLower.contains('haze')) {
+      return 'Hazy';
+    }
+
+    // Default - return the condition as-is with first letter capitalized
+    return condition.isNotEmpty
+        ? condition[0].toUpperCase() + condition.substring(1)
+        : 'Unknown';
   }
 }
