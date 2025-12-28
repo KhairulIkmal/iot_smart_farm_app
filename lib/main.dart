@@ -150,7 +150,7 @@ class PostLoginRouter extends StatelessWidget {
 
         // No crop claimed yet
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const CropListScreen();
+          return const CropListScreen(showBackButton: false);
         }
 
         // Crop exists

@@ -4,15 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme.dart';
 
 /// ------------------------------------------------------------
-/// UNCLAIM DEVICE DIALOG
+/// DELETE CROP DIALOG
 ///
 /// PURPOSE:
-/// Safely release an ESP32 device from a farmer and deactivate
-/// its crop while keeping the system in a valid state.
+/// Permanently delete a crop and release its ESP32 device
+/// while keeping the system in a valid state.
 ///
-/// UNCLAIMING MEANS:
+/// DELETING MEANS:
 /// - Device is no longer owned (status = unassigned)
-/// - Crop is no longer active (status = inactive)
+/// - Crop is permanently deleted from Firestore
 /// - Dashboard access is blocked again
 ///
 /// RECEIVES:
@@ -21,7 +21,7 @@ import '../../core/theme.dart';
 /// - cropType (optional - for display)
 ///
 /// FIRESTORE OPERATIONS (ATOMIC):
-/// 1. Update crop status to "inactive"
+/// 1. Delete crop document
 /// 2. Update device status to "unassigned"
 ///
 /// AFTER SUCCESS:
@@ -29,7 +29,6 @@ import '../../core/theme.dart';
 /// - PostLoginRouter re-evaluates → routes to CropManagement
 ///
 /// DOES NOT:
-/// - Delete crop document
 /// - Delete device document
 /// - Touch Realtime Database
 /// - Navigate manually
@@ -73,7 +72,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = false;
 
-  /// Perform atomic unclaim operation
+  /// Perform atomic delete operation
   Future<void> _unclaimDevice() async {
     setState(() => _isLoading = true);
 
@@ -81,13 +80,9 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
       // Use Firestore batch for atomic operation
       final batch = _firestore.batch();
 
-      // Update 1 — Deactivate Crop
+      // Update 1 — Delete Crop
       final cropRef = _firestore.collection('crops').doc(widget.cropId);
-      batch.update(cropRef, {
-        'status': 'inactive',
-        'deactivatedAt': FieldValue.serverTimestamp(),
-        'unclaimed': true,
-      });
+      batch.delete(cropRef);
 
       // Update 2 — Reset Device Status
       final deviceRef = _firestore.collection('devices').doc(widget.deviceId);
@@ -98,7 +93,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
         'unassignedAt': FieldValue.serverTimestamp(),
       });
 
-      // Commit both updates atomically
+      // Commit both operations atomically
       await batch.commit();
 
       // SUCCESS - Close dialog with true result
@@ -108,7 +103,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
     } on FirebaseException catch (e) {
       _showErrorSnackBar('Firebase error: ${e.message}');
     } catch (e) {
-      _showErrorSnackBar('Failed to unclaim device. Please try again.');
+      _showErrorSnackBar('Failed to delete crop. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -160,7 +155,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
 
             // Title
             const Text(
-              'Unclaim Device?',
+              'Delete Crop?',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -237,13 +232,13 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
               child: Column(
                 children: [
                   _buildWarningItem(
-                    Icons.sensors_off,
-                    'Sensor monitoring will stop',
+                    Icons.delete_forever,
+                    'Crop data will be permanently deleted',
                   ),
                   const SizedBox(height: 10),
                   _buildWarningItem(
-                    Icons.eco_outlined,
-                    'Current crop will be deactivated',
+                    Icons.sensors_off,
+                    'Sensor monitoring will stop',
                   ),
                   const SizedBox(height: 10),
                   _buildWarningItem(
@@ -302,7 +297,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Unclaim Button (Destructive - Red)
+                // Delete Button (Destructive - Red)
                 Expanded(
                   child: SizedBox(
                     height: 52,
@@ -333,10 +328,10 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.link_off, size: 18),
+                                Icon(Icons.delete_forever, size: 18),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Unclaim',
+                                  'Delete',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,

@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/theme.dart';
+import '../services/data_migration_service.dart';
+import '../services/user_counter_service.dart';
 import 'login_screen.dart';
 import '../features/navigation/main_navigation.dart';
 import '../features/crop_management/crop_list_screen.dart';
@@ -52,8 +54,12 @@ class AuthService {
       // Update display name
       await userCredential.user?.updateDisplayName(name);
 
-      // Create user document in Firestore
-      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+      // Generate custom user ID
+      final userCounterService = UserCounterService();
+      final customUserId = await userCounterService.getNextUserId();
+
+      // Create user document with custom ID
+      await _firestore.collection('users').doc(customUserId).set({
         'uid': userCredential.user!.uid,
         'name': name,
         'email': email,
@@ -95,17 +101,18 @@ class AuthService {
       // Sign in to Firebase
       final userCredential = await _auth.signInWithCredential(credential);
 
-      // Check if user document exists, if not create it
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      // Check if user with this Auth UID exists (use UserCounterService)
+      final userCounterService = UserCounterService();
+      final existingUser = await userCounterService.getUserByAuthUid(userCredential.user!.uid);
 
-      if (!userDoc.exists) {
-        await _firestore.collection('users').doc(userCredential.user!.uid).set({
+      if (existingUser == null) {
+        // New user - create with custom ID
+        final customUserId = await userCounterService.getNextUserId();
+        await _firestore.collection('users').doc(customUserId).set({
           'uid': userCredential.user!.uid,
           'name': userCredential.user!.displayName ?? '',
           'email': userCredential.user!.email ?? '',
+          'photoURL': userCredential.user!.photoURL,
           'created_at': FieldValue.serverTimestamp(),
           'updated_at': FieldValue.serverTimestamp(),
         });
@@ -248,18 +255,103 @@ class AuthWrapper extends StatelessWidget {
 /// ------------------------------------------------------------
 /// POST LOGIN ROUTER
 /// Decides: Crop Management OR Main App
+/// Also handles data migration to custom user IDs
 /// ------------------------------------------------------------
-class PostLoginRouter extends StatelessWidget {
+class PostLoginRouter extends StatefulWidget {
   const PostLoginRouter({super.key});
 
   @override
+  State<PostLoginRouter> createState() => _PostLoginRouterState();
+}
+
+class _PostLoginRouterState extends State<PostLoginRouter> {
+  final DataMigrationService _migrationService = DataMigrationService();
+  final UserCounterService _userCounterService = UserCounterService();
+  bool _isMigrating = false;
+  String? _customUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndMigrate();
+  }
+
+  Future<void> _checkAndMigrate() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isMigrating = true);
+
+    // Check if user needs migration
+    final needsMigration = await _migrationService.needsMigration(user);
+
+    if (needsMigration) {
+      // Show migration dialog
+      if (mounted) {
+        _showMigrationDialog();
+      }
+
+      // Run migration
+      final customUserId = await _migrationService.migrateUserData(user);
+
+      setState(() {
+        _customUserId = customUserId;
+        _isMigrating = false;
+      });
+
+      // Hide dialog
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    } else {
+      // User already migrated, just get custom ID
+      final userDoc = await _userCounterService.getUserByAuthUid(user.uid);
+      setState(() {
+        _customUserId = userDoc?.id;
+        _isMigrating = false;
+      });
+    }
+  }
+
+  void _showMigrationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          backgroundColor: AppColors.surfaceDark,
+          title: const Row(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+              SizedBox(width: 16),
+              Text(
+                'Updating Account...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Please wait while we update your account data.',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser!;
+    if (_isMigrating || _customUserId == null) {
+      return const SplashScreen();
+    }
 
     return FutureBuilder<QuerySnapshot>(
       future: FirebaseFirestore.instance
           .collection('crops')
-          .where('farmer_id', isEqualTo: user.uid)
+          .where('farmer_id', isEqualTo: _customUserId)
           .where('status', isEqualTo: 'active')
           .limit(1)
           .get(),
@@ -270,7 +362,7 @@ class PostLoginRouter extends StatelessWidget {
 
         // No crop claimed
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const CropListScreen();
+          return const CropListScreen(showBackButton: false);
         }
 
         // Crop exists

@@ -4,9 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'dart:async';
 
 import '../../core/theme.dart';
 import '../../services/notifications/notification_service.dart';
+import '../../services/selected_crop_service.dart';
 import '../more/notifications/notifications_screen.dart';
 
 /// ------------------------------------------------------------
@@ -24,6 +26,7 @@ import '../more/notifications/notifications_screen.dart';
 ///   ESP32_001/
 ///     pump: "on" | "off"
 ///     timestamp: 1700000000
+///     lastPumpOn: 1700000000  // Last time pump was turned ON
 ///
 /// Firestore Structure:
 /// irrigation_rules/{ruleId}
@@ -59,6 +62,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final SelectedCropService _selectedCropService = SelectedCropService();
 
   String? _selectedDeviceId;
   String? _selectedCropId;
@@ -72,6 +76,8 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   double _phMin = 6.0;
   double _phMax = 7.5;
 
+  StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +87,34 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       initialIndex: widget.initialTabIndex,
     );
     _tabController.addListener(_onTabChanged);
-    _loadUserDevice();
+
+    // Listen to crop selection changes from dashboard
+    _cropSelectionSubscription = _selectedCropService.selectedCropStream.listen((cropData) {
+      if (cropData != null) {
+        setState(() {
+          _selectedCropId = cropData.cropId;
+          _selectedDeviceId = cropData.deviceId;
+        });
+        _loadIrrigationRules();
+        _loadPumpStatus();
+      } else {
+        setState(() {
+          _selectedCropId = null;
+          _selectedDeviceId = null;
+        });
+      }
+    });
+
+    // Load initial selection if available
+    final currentSelection = _selectedCropService.selectedCrop;
+    if (currentSelection != null) {
+      setState(() {
+        _selectedCropId = currentSelection.cropId;
+        _selectedDeviceId = currentSelection.deviceId;
+      });
+      _loadIrrigationRules();
+      _loadPumpStatus();
+    }
   }
 
   void _onTabChanged() {
@@ -95,6 +128,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _audioPlayer.dispose();
+    _cropSelectionSubscription?.cancel();
     super.dispose();
   }
 
@@ -118,28 +152,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       Future.delayed(const Duration(milliseconds: 100), () {
         HapticFeedback.mediumImpact();
       });
-    }
-  }
-
-  Future<void> _loadUserDevice() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final crops = await _firestore
-        .collection('crops')
-        .where('farmer_id', isEqualTo: user.uid)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
-        .get();
-
-    if (crops.docs.isNotEmpty) {
-      final cropData = crops.docs.first.data();
-      setState(() {
-        _selectedCropId = crops.docs.first.id;
-        _selectedDeviceId = cropData['device_id'];
-      });
-      _loadIrrigationRules();
-      _loadPumpStatus();
     }
   }
 
@@ -209,66 +221,119 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   /// HEADER
   /// ------------------------------------------------
   Widget _buildHeader() {
+    final user = _auth.currentUser;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Irrigation Control',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          StreamBuilder<int>(
-            stream: NotificationService().getUnreadCountStream(),
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.data ?? 0;
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Irrigation Control',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              StreamBuilder<int>(
+                stream: NotificationService().getUnreadCountStream(),
+                builder: (context, snapshot) {
+                  final unreadCount = snapshot.data ?? 0;
 
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const NotificationsScreen(),
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceDark,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderDark),
+                      ),
+                      child: Stack(
+                        children: [
+                          const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.error,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   );
                 },
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceDark,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderDark),
-                  ),
-                  child: Stack(
-                    children: [
-                      const Icon(
-                        Icons.notifications_outlined,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                      if (unreadCount > 0)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.error,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          // Display selected field (synced from dashboard)
+          if (_selectedDeviceId != null)
+            StreamBuilder<QuerySnapshot>(
+              stream: _firestore
+                  .collection('crops')
+                  .where('farmer_id', isEqualTo: user?.uid)
+                  .where('status', isEqualTo: 'active')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                final crops = snapshot.data?.docs ?? [];
+
+                if (_selectedCropId != null && crops.any((c) => c.id == _selectedCropId)) {
+                  final selectedCrop = crops.firstWhere((c) => c.id == _selectedCropId);
+                  final data = selectedCrop.data() as Map<String, dynamic>;
+                  final cropType = data['crop_type'] ?? 'Unknown';
+                  final fieldName = data['field_name'] ?? 'Field A';
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CONTROLLING',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.5),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$cropType - $fieldName',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
+                return const SizedBox.shrink();
+              },
+            ),
         ],
       ),
     );
@@ -569,63 +634,90 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
   /// Quick Stats with live data from RTDB
   Widget _buildQuickStats() {
+    if (_selectedDeviceId == null) return const SizedBox.shrink();
+
     return Row(
       children: [
-        // Last Run (from Firestore or local storage)
+        // Last Active (Pump Turn On History)
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.borderDark),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Last Run',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withOpacity(0.5),
-                  ),
+          child: StreamBuilder<DatabaseEvent>(
+            stream: _rtdb.ref('commands/$_selectedDeviceId').onValue.asBroadcastStream(),
+            builder: (context, commandSnapshot) {
+              String lastRunText = 'Never';
+
+              if (commandSnapshot.hasData && commandSnapshot.data!.snapshot.value != null) {
+                final commandData = Map<String, dynamic>.from(commandSnapshot.data!.snapshot.value as Map);
+
+                // Get last pump "on" timestamp from history
+                final lastPumpOn = commandData['lastPumpOn'] as int?;
+
+                if (lastPumpOn != null) {
+                  final lastRunDate = DateTime.fromMillisecondsSinceEpoch(lastPumpOn);
+
+                  // Format the actual time (clock)
+                  final hour = lastRunDate.hour.toString().padLeft(2, '0');
+                  final minute = lastRunDate.minute.toString().padLeft(2, '0');
+                  lastRunText = '$hour:$minute';
+                }
+              }
+
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderDark),
                 ),
-                const SizedBox(height: 8),
-                Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.schedule,
-                      size: 18,
-                      color: Colors.white.withOpacity(0.7),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Today, 08:30',
+                    Text(
+                      'Last Active',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.5),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          size: 18,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          lastRunText,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
         const SizedBox(width: 12),
         // Tank Level (Live from RTDB)
         Expanded(
           child: StreamBuilder<DatabaseEvent>(
-            stream: _selectedDeviceId != null
-                ? _rtdb.ref('sensors/$_selectedDeviceId/waterLevel').onValue.asBroadcastStream()
-                : null,
+            stream: _rtdb.ref('sensors/$_selectedDeviceId/live').onValue.asBroadcastStream(),
             builder: (context, snapshot) {
               int waterLevel = 0;
+
               if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-                waterLevel = snapshot.data!.snapshot.value is int
-                    ? snapshot.data!.snapshot.value as int
-                    : (snapshot.data!.snapshot.value as num).toInt();
+                final data = Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
+
+                // Get water level
+                waterLevel = data['waterLevel'] != null
+                    ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
+                    : 0;
               }
 
               final isLow = waterLevel < 30;
@@ -1550,12 +1642,19 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
       // Send command to ESP32 via RTDB
       // When user manually controls pump, switch to manual mode
-      await _rtdb.ref('commands/$_selectedDeviceId').update({
+      final commandUpdate = {
         'pump': newState,
         'mode': 'manual', // Switch to manual mode when user controls pump
         'timestamp': ServerValue.timestamp,
         'source': 'app',
-      });
+      };
+
+      // If turning ON, save the timestamp as lastPumpOn for history
+      if (newState == 'on') {
+        commandUpdate['lastPumpOn'] = ServerValue.timestamp;
+      }
+
+      await _rtdb.ref('commands/$_selectedDeviceId').update(commandUpdate);
 
       // Don't manually update _isPumpActive here
       // Let the RTDB listener in _loadPumpStatus() handle it

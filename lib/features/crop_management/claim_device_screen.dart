@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/theme.dart';
+import '../../services/crop_counter_service.dart';
 
 /// ------------------------------------------------------------
 /// CLAIM DEVICE SCREEN
@@ -43,6 +44,7 @@ class ClaimDeviceScreen extends StatefulWidget {
 class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CropCounterService _cropCounterService = CropCounterService();
 
   final _formKey = GlobalKey<FormState>();
   final _fieldNameController = TextEditingController();
@@ -134,23 +136,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // STEP 1: Check for existing active crop (single-active-crop rule)
-      final existingCrops = await _firestore
-          .collection('crops')
-          .where('farmer_id', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'active')
-          .get();
-
-      if (existingCrops.docs.isNotEmpty) {
-        // Show confirmation dialog
-        final shouldContinue = await _showDeactivateDialog();
-        if (!shouldContinue) {
-          setState(() => _isLoading = false);
-          return;
-        }
-      }
-
-      // STEP 2: Check if device is already assigned to another farmer
+      // STEP 1: Check if device is already assigned to another farmer
       final deviceDoc = await _firestore
           .collection('devices')
           .doc(widget.deviceId)
@@ -171,18 +157,13 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         }
       }
 
+      // STEP 2: Generate next crop ID
+      final cropId = await _cropCounterService.getNextCropId();
+
       // STEP 3: Perform atomic write (transaction)
       await _firestore.runTransaction((transaction) async {
-        // Deactivate existing active crops
-        for (final doc in existingCrops.docs) {
-          transaction.update(doc.reference, {
-            'status': 'inactive',
-            'deactivatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-
-        // Create new crop document
-        final cropRef = _firestore.collection('crops').doc();
+        // Create new crop document with sequential ID
+        final cropRef = _firestore.collection('crops').doc(cropId);
         transaction.set(cropRef, {
           'farmer_id': user.uid,
           'device_id': widget.deviceId,
@@ -200,14 +181,14 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         transaction.set(deviceRef, {
           'status': 'assigned',
           'assigned_to': user.uid,
-          'assigned_crop_id': cropRef.id,
+          'assigned_crop_id': cropId,
           'assignedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       });
 
       // SUCCESS - Show message and pop
       if (mounted) {
-        _showSuccessSnackBar('Device claimed successfully!');
+        _showSuccessSnackBar('Device assigned successfully!');
 
         // Navigate back - PostLoginRouter will re-evaluate and route to dashboard
         Navigator.pop(context);
@@ -221,112 +202,6 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  /// Show dialog when user already has an active crop
-  Future<bool> _showDeactivateDialog() async {
-    return await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => Dialog(
-            backgroundColor: AppColors.surfaceDark,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Warning Icon
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.warning_amber_rounded,
-                      color: AppColors.warning,
-                      size: 36,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Title
-                  const Text(
-                    'Active Crop Exists',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Message
-                  Text(
-                    'You already have an active crop. Claiming a new device will deactivate the previous crop.\n\nDo you want to continue?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.white.withOpacity(0.7),
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 50,
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: BorderSide(color: AppColors.borderDark),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.warning,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: const Text(
-                              'Continue',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ) ??
-        false;
   }
 
   @override
@@ -356,7 +231,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
           ),
         ),
         title: const Text(
-          'Claim Device',
+          'Assign Device',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
@@ -525,7 +400,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'This device is already assigned. Claiming will reassign it.',
+                      'This device is already assigned. Assigning will reassign it.',
                       style: TextStyle(fontSize: 13, color: AppColors.warning),
                     ),
                   ),
@@ -668,7 +543,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'What happens after claiming?',
+                  'What happens after assigning?',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -678,9 +553,9 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                 const SizedBox(height: 6),
                 Text(
                   '• Device will be linked to your account\n'
+                  '• You can assign multiple devices for different crops\n'
                   '• AI will provide crop-specific recommendations\n'
-                  '• Irrigation thresholds will be optimized\n'
-                  '• You can view real-time sensor data',
+                  '• Switch between crops in the dashboard',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.info.withOpacity(0.8),
@@ -728,7 +603,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                   Icon(Icons.link, size: 22),
                   SizedBox(width: 10),
                   Text(
-                    'Claim Device',
+                    'Assign Device',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],

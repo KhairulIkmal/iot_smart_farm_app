@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../services/weather_service.dart';
 import '../../services/notifications/notification_service.dart';
+import '../../services/selected_crop_service.dart';
 import '../weather/weather_forecast_screen.dart';
 import '../analytics/sensor_graph_screen.dart';
 import '../more/notifications/notifications_screen.dart';
@@ -46,6 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final WeatherService _weatherService = WeatherService();
+  final SelectedCropService _selectedCropService = SelectedCropService();
 
   String? _selectedCropId;
   String? _selectedDeviceId;
@@ -142,6 +144,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context, snapshot) {
         final crops = snapshot.data?.docs ?? [];
 
+        // Reset selection if selected crop no longer exists
+        if (_selectedCropId != null && !crops.any((c) => c.id == _selectedCropId)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _selectedCropId = null;
+              _selectedDeviceId = null;
+              _selectedCropType = null;
+            });
+            // Broadcast the reset to other screens
+            _selectedCropService.clearSelectedCrop();
+          });
+        }
+
         // Auto-select first crop if none selected
         if (crops.isNotEmpty && _selectedCropId == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -152,83 +167,308 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _selectedDeviceId = data['device_id'];
               _selectedCropType = data['crop_type'];
             });
+            // Broadcast the selection to other screens
+            _selectedCropService.updateSelectedCrop(
+              cropId: firstCrop.id,
+              deviceId: data['device_id'],
+              cropType: data['crop_type'],
+            );
           });
         }
 
-        return Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ACTIVE FIELD',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.5),
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Flexible(
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedCropId,
-                            isDense: true,
-                            dropdownColor: AppColors.surfaceDark,
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down,
-                              color: AppColors.primary,
-                            ),
-                            hint: const Text(
-                              'Select Field',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            items: crops.map((crop) {
-                              final data = crop.data() as Map<String, dynamic>;
-                              final cropType = data['crop_type'] ?? 'Unknown';
-                              return DropdownMenuItem<String>(
-                                value: crop.id,
-                                child: Text(
-                                  '$cropType Field A',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                final crop = crops.firstWhere(
-                                  (c) => c.id == value,
-                                );
-                                final data =
-                                    crop.data() as Map<String, dynamic>;
-                                setState(() {
-                                  _selectedCropId = value;
-                                  _selectedDeviceId = data['device_id'];
-                                  _selectedCropType = data['crop_type'];
-                                });
-                              }
-                            },
-                          ),
+                      Text(
+                        'ACTIVE FIELD',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.5),
+                          letterSpacing: 1,
                         ),
                       ),
+                      const SizedBox(height: 8),
                     ],
+                  ),
+                ),
+                // Online Status Badge (from RTDB lastSeen)
+                _buildOnlineStatusBadge(),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Modern Crop Selector Card
+            GestureDetector(
+              onTap: () => _showCropSelectorBottomSheet(crops),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.primary,
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.15),
+                      blurRadius: 8,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 0),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Agriculture Icon
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.agriculture,
+                        color: AppColors.primary,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Crop Info
+                    Expanded(
+                      child: _selectedCropId != null && crops.any((c) => c.id == _selectedCropId)
+                          ? Builder(
+                              builder: (context) {
+                                final selectedCrop = crops.firstWhere(
+                                  (c) => c.id == _selectedCropId,
+                                );
+                                final data = selectedCrop.data() as Map<String, dynamic>;
+                                final cropType = data['crop_type'] ?? 'Unknown';
+                                final fieldName = data['field_name'] ?? 'Field A';
+                                final deviceId = data['device_id'] ?? '';
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '$cropType - $fieldName',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      deviceId,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white.withOpacity(0.5),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                );
+                              },
+                            )
+                          : const Text(
+                              'Select Field',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                    // Dropdown Arrow
+                    const Icon(
+                      Icons.keyboard_arrow_down,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Show crop selector bottom sheet
+  void _showCropSelectorBottomSheet(List<QueryDocumentSnapshot> crops) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        decoration: const BoxDecoration(
+          color: AppColors.backgroundDark,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  const Text(
+                    'Select Field',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${crops.length} ${crops.length == 1 ? 'field' : 'fields'}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.5),
+                    ),
                   ),
                 ],
               ),
             ),
-            // Online Status Badge (from RTDB lastSeen)
-            _buildOnlineStatusBadge(),
+            const Divider(color: AppColors.borderDark, height: 1),
+            // Crop list
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(16),
+                itemCount: crops.length,
+                itemBuilder: (context, index) {
+                  final crop = crops[index];
+                  final data = crop.data() as Map<String, dynamic>;
+                  final cropType = data['crop_type'] ?? 'Unknown';
+                  final fieldName = data['field_name'] ?? 'Field A';
+                  final deviceId = data['device_id'] ?? '';
+                  final isSelected = crop.id == _selectedCropId;
+
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedCropId = crop.id;
+                        _selectedDeviceId = deviceId;
+                        _selectedCropType = cropType;
+                      });
+                      // Broadcast the selection to other screens
+                      _selectedCropService.updateSelectedCrop(
+                        cropId: crop.id,
+                        deviceId: deviceId,
+                        cropType: cropType,
+                      );
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary.withOpacity(0.15)
+                            : AppColors.surfaceDark,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.borderDark,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Crop icon
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.agriculture,
+                              color: AppColors.primary,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Crop info
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$cropType - $fieldName',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.developer_board,
+                                      size: 14,
+                                      color: Colors.white.withOpacity(0.5),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      deviceId,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.white.withOpacity(0.5),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Selected indicator
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle,
+                              color: AppColors.primary,
+                              size: 24,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 

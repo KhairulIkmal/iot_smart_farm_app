@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 import '../../core/theme.dart';
 import '../../auth/auth_service.dart';
+import '../../services/selected_crop_service.dart';
 import 'claim_device_screen.dart';
 import 'unclaim_device_dialog.dart';
 
@@ -15,7 +17,12 @@ import 'unclaim_device_dialog.dart';
 /// - My Crops (user's claimed crops)
 /// ------------------------------------------------------------
 class CropListScreen extends StatefulWidget {
-  const CropListScreen({super.key});
+  final bool showBackButton;
+
+  const CropListScreen({
+    super.key,
+    this.showBackButton = true,
+  });
 
   @override
   State<CropListScreen> createState() => _CropListScreenState();
@@ -23,6 +30,7 @@ class CropListScreen extends StatefulWidget {
 
 class _CropListScreenState extends State<CropListScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final AuthService _authService = AuthService();
 
@@ -67,23 +75,24 @@ class _CropListScreenState extends State<CropListScreen> {
       children: [
         Row(
           children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderDark),
-                ),
-                child: const Icon(
-                  Icons.arrow_back,
-                  color: AppColors.primary,
-                  size: 24,
+            if (widget.showBackButton)
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDark,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderDark),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
+            if (widget.showBackButton) const SizedBox(width: 12),
             const Text(
               'Crop Management',
               style: TextStyle(
@@ -94,22 +103,23 @@ class _CropListScreenState extends State<CropListScreen> {
             ),
           ],
         ),
-        GestureDetector(
-          onTap: _handleLogout,
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderDark),
-            ),
-            child: const Icon(
-              Icons.grid_view_rounded,
-              color: AppColors.primary,
-              size: 24,
+        if (!widget.showBackButton)
+          GestureDetector(
+            onTap: _handleLogout,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDark,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderDark),
+              ),
+              child: const Icon(
+                Icons.logout,
+                color: AppColors.error,
+                size: 24,
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -266,14 +276,8 @@ class _CropListScreenState extends State<CropListScreen> {
             return Column(
               children: devices.map((device) {
                 final deviceId = device.id;
-                final data = device.data() as Map<String, dynamic>;
-                final lastSeen = data['lastSeen'] as Timestamp?;
-                final signalStrength = _getSignalStrength(lastSeen);
 
-                return _buildDeviceCard(
-                  deviceId: deviceId,
-                  signalStrength: signalStrength,
-                );
+                return _buildDeviceCard(deviceId: deviceId);
               }).toList(),
             );
           },
@@ -284,84 +288,110 @@ class _CropListScreenState extends State<CropListScreen> {
 
   Widget _buildDeviceCard({
     required String deviceId,
-    required String signalStrength,
   }) {
-    final bool isStrong = signalStrength == 'Strong Signal';
+    return StreamBuilder<DatabaseEvent>(
+      stream: _rtdb.ref('sensors/$deviceId/live/lastSeen').onValue.asBroadcastStream(),
+      builder: (context, snapshot) {
+        bool isOnline = false;
+        String statusText = 'No Signal';
+        Color statusColor = AppColors.error;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Row(
-        children: [
-          // Device Icon
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.backgroundDark,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.memory, color: AppColors.primary, size: 24),
+        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          final lastSeen = snapshot.data!.snapshot.value as int;
+          final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(lastSeen);
+          final diff = DateTime.now().difference(lastSeenDate);
+
+          // Consider online if last seen within 10 seconds (same as dashboard)
+          isOnline = diff.inSeconds < 10;
+
+          if (isOnline) {
+            statusText = 'Online';
+            statusColor = AppColors.primary;
+          } else if (diff.inMinutes < 5) {
+            statusText = 'Weak Signal';
+            statusColor = AppColors.warning;
+          } else {
+            statusText = 'No Signal';
+            statusColor = AppColors.error;
+          }
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceDark,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderDark),
           ),
-          const SizedBox(width: 14),
-          // Device Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  deviceId,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+          child: Row(
+            children: [
+              // Device Icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundDark,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 4),
-                Row(
+                child: const Icon(Icons.memory, color: AppColors.primary, size: 24),
+              ),
+              const SizedBox(width: 14),
+              // Device Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.wifi,
-                      size: 14,
-                      color: isStrong ? AppColors.primary : AppColors.warning,
-                    ),
-                    const SizedBox(width: 4),
                     Text(
-                      signalStrength,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.5),
+                      deviceId,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.wifi,
+                          size: 14,
+                          color: statusColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          // Claim Button
-          ElevatedButton(
-            onPressed: () => _navigateToClaimDevice(deviceId),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.backgroundDark,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
               ),
-              elevation: 0,
-            ),
-            child: const Text(
-              'Claim',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
+              // Assign Button
+              ElevatedButton(
+                onPressed: () => _navigateToClaimDevice(deviceId),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.backgroundDark,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Assign',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -489,190 +519,197 @@ class _CropListScreenState extends State<CropListScreen> {
     required String deviceId,
     Timestamp? plantingDate,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderDark),
+    return GestureDetector(
+      onTap: () => _navigateToDashboard(
+        cropId: cropId,
+        deviceId: deviceId,
+        cropType: cropType,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            // Background Image
-            Container(
-              height: 180,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    _getCropColor(cropType).withOpacity(0.3),
-                    AppColors.backgroundDark,
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: Icon(
-                    _getCropIcon(cropType),
-                    size: 80,
-                    color: _getCropColor(cropType).withOpacity(0.3),
-                  ),
-                ),
-              ),
-            ),
-            // Content Overlay
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                padding: const EdgeInsets.all(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              // Background Image
+              Container(
+                height: 180,
+                width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.transparent,
-                      AppColors.backgroundDark.withOpacity(0.9),
+                      _getCropColor(cropType).withOpacity(0.3),
                       AppColors.backgroundDark,
                     ],
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Monitoring Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'MONITORING',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Icon(
+                      _getCropIcon(cropType),
+                      size: 80,
+                      color: _getCropColor(cropType).withOpacity(0.3),
                     ),
-                    const SizedBox(height: 10),
-                    // Crop Name & Actions
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '$cropType - Field A',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.link,
-                                    size: 14,
-                                    color: AppColors.textSecondaryDark,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    deviceId,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: AppColors.textSecondaryDark,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                  ),
+                ),
+              ),
+              // Content Overlay
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        AppColors.backgroundDark.withOpacity(0.9),
+                        AppColors.backgroundDark,
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Monitoring Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        // More Options Button
-                        Row(
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Unclaim Button
-                            ElevatedButton(
-                              onPressed: () => _showUnclaimDialog(
-                                cropId: cropId,
-                                deviceId: deviceId,
-                                cropType: cropType,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.error.withOpacity(
-                                  0.2,
-                                ),
-                                foregroundColor: AppColors.error,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: const Text(
-                                'Unclaim',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceDark,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.more_horiz,
-                                color: Colors.white,
-                                size: 20,
+                            const SizedBox(width: 6),
+                            const Text(
+                              'MONITORING',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 10),
+                      // Crop Name & Actions
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$cropType - Field A',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.link,
+                                      size: 14,
+                                      color: AppColors.textSecondaryDark,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      deviceId,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textSecondaryDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // More Options Button
+                          Row(
+                            children: [
+                              // Unclaim Button
+                              ElevatedButton(
+                                onPressed: () => _showUnclaimDialog(
+                                  cropId: cropId,
+                                  deviceId: deviceId,
+                                  cropType: cropType,
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.error.withOpacity(
+                                    0.2,
+                                  ),
+                                  foregroundColor: AppColors.error,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceDark,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(
+                                  Icons.more_horiz,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -704,7 +741,7 @@ class _CropListScreenState extends State<CropListScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Claim an ESP32 device above to start\nmonitoring your first crop',
+            'Assign an ESP32 device above to start\nmonitoring your first crop',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -742,7 +779,7 @@ class _CropListScreenState extends State<CropListScreen> {
       MaterialPageRoute(builder: (_) => ClaimDeviceScreen(deviceId: deviceId)),
     );
 
-    // If claim was successful, navigate to main navigation (Dashboard tab)
+    // If assign was successful, navigate to main navigation (Dashboard tab)
     if (result == true && mounted) {
       // Replace the current screen with MainNavigation and go to Dashboard
       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -750,6 +787,26 @@ class _CropListScreenState extends State<CropListScreen> {
         (route) => false,
       );
     }
+  }
+
+  void _navigateToDashboard({
+    required String cropId,
+    required String deviceId,
+    required String cropType,
+  }) {
+    // Update the selected crop via the service
+    final selectedCropService = SelectedCropService();
+    selectedCropService.updateSelectedCrop(
+      cropId: cropId,
+      deviceId: deviceId,
+      cropType: cropType,
+    );
+
+    // Navigate back to main navigation (Dashboard tab)
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/main',
+      (route) => false,
+    );
   }
 
   Future<void> _showUnclaimDialog({
@@ -773,7 +830,7 @@ class _CropListScreenState extends State<CropListScreen> {
             children: [
               const Icon(Icons.check_circle, color: Colors.white),
               const SizedBox(width: 12),
-              Text('$deviceId has been unclaimed'),
+              Text('$cropType crop has been deleted'),
             ],
           ),
           backgroundColor: AppColors.success,
@@ -828,21 +885,6 @@ class _CropListScreenState extends State<CropListScreen> {
   /// ------------------------------------------------
   /// HELPER METHODS
   /// ------------------------------------------------
-  String _getSignalStrength(Timestamp? lastSeen) {
-    if (lastSeen == null) return 'No Signal';
-
-    final now = DateTime.now();
-    final diff = now.difference(lastSeen.toDate());
-
-    if (diff.inMinutes < 5) {
-      return 'Strong Signal';
-    } else if (diff.inMinutes < 30) {
-      return 'Weak Signal';
-    } else {
-      return 'No Signal';
-    }
-  }
-
   Color _getCropColor(String cropType) {
     switch (cropType.toLowerCase()) {
       case 'tomato':

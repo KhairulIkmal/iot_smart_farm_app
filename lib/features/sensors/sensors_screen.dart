@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'dart:async';
 
 import '../../core/theme.dart';
+import '../../services/selected_crop_service.dart';
 import '../analytics/sensor_graph_screen.dart';
 
 /// ------------------------------------------------------------
@@ -42,8 +43,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SelectedCropService _selectedCropService = SelectedCropService();
 
   String? _selectedDeviceId;
+  String? _selectedCropId;
   bool _isRefreshing = false;
   DateTime _lastUpdated = DateTime.now();
 
@@ -54,36 +57,43 @@ class _SensorsScreenState extends State<SensorsScreen> {
   List<double> _waterHistory = [];
 
   StreamSubscription<DatabaseEvent>? _sensorSubscription;
+  StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadUserDevice();
+    // Listen to crop selection changes from dashboard
+    _cropSelectionSubscription = _selectedCropService.selectedCropStream.listen((cropData) {
+      if (cropData != null) {
+        setState(() {
+          _selectedCropId = cropData.cropId;
+          _selectedDeviceId = cropData.deviceId;
+        });
+        _loadHistoricalData();
+      } else {
+        setState(() {
+          _selectedCropId = null;
+          _selectedDeviceId = null;
+        });
+      }
+    });
+
+    // Load initial selection if available
+    final currentSelection = _selectedCropService.selectedCrop;
+    if (currentSelection != null) {
+      setState(() {
+        _selectedCropId = currentSelection.cropId;
+        _selectedDeviceId = currentSelection.deviceId;
+      });
+      _loadHistoricalData();
+    }
   }
 
   @override
   void dispose() {
     _sensorSubscription?.cancel();
+    _cropSelectionSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _loadUserDevice() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final crops = await _firestore
-        .collection('crops')
-        .where('farmer_id', isEqualTo: user.uid)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
-        .get();
-
-    if (crops.docs.isNotEmpty) {
-      setState(() {
-        _selectedDeviceId = crops.docs.first['device_id'];
-      });
-      _loadHistoricalData();
-    }
   }
 
   /// Load historical data from RTDB
@@ -207,54 +217,107 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// HEADER
   /// ------------------------------------------------
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final user = _auth.currentUser;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Sensors',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sensors',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Real-time monitoring',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.5),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Real-time monitoring',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withOpacity(0.5),
+            // Refresh Button
+            GestureDetector(
+              onTap: _isRefreshing ? null : _refreshData,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceDark,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderDark),
+                ),
+                child: _isRefreshing
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.primary,
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.refresh, color: AppColors.primary, size: 22),
               ),
             ),
           ],
         ),
-        // Refresh Button
-        GestureDetector(
-          onTap: _isRefreshing ? null : _refreshData,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderDark),
-            ),
-            child: _isRefreshing
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.primary,
+        const SizedBox(height: 12),
+        // Display selected field (synced from dashboard)
+        if (_selectedDeviceId != null)
+          StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('crops')
+                .where('farmer_id', isEqualTo: user?.uid)
+                .where('status', isEqualTo: 'active')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final crops = snapshot.data?.docs ?? [];
+
+              if (_selectedCropId != null && crops.any((c) => c.id == _selectedCropId)) {
+                final selectedCrop = crops.firstWhere((c) => c.id == _selectedCropId);
+                final data = selectedCrop.data() as Map<String, dynamic>;
+                final cropType = data['crop_type'] ?? 'Unknown';
+                final fieldName = data['field_name'] ?? 'Field A';
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MONITORING',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withOpacity(0.5),
+                        letterSpacing: 1,
                       ),
                     ),
-                  )
-                : const Icon(Icons.refresh, color: AppColors.primary, size: 22),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$cropType - $fieldName',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return const SizedBox.shrink();
+            },
           ),
-        ),
       ],
     );
   }
@@ -1115,7 +1178,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// HELPER WIDGETS
   /// ------------------------------------------------
 
-  /// Bar chart for historical data
+  /// Bar chart for historical data with level indicator
   Widget _buildBarChart(List<double> data, Color color) {
     if (data.isEmpty) {
       data = List.generate(7, (i) => 50.0);
@@ -1131,13 +1194,30 @@ class _SensorsScreenState extends State<SensorsScreen> {
           final isLast = index == data.length - 1;
 
           return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              height: (value / 100) * 50,
-              decoration: BoxDecoration(
-                color: isLast ? color : color.withOpacity(0.6 + (index * 0.05)),
-                borderRadius: BorderRadius.circular(4),
-              ),
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                // Background bar (full height, faded)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderDark.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                // Value bar (actual level)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  height: (value / 100) * 50,
+                  decoration: BoxDecoration(
+                    color: isLast
+                        ? color
+                        : color.withOpacity(0.5 + (index * 0.05)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
             ),
           );
         }).toList(),
@@ -1145,18 +1225,20 @@ class _SensorsScreenState extends State<SensorsScreen> {
     );
   }
 
-  /// Usage trend bars with color gradient
+  /// Usage trend bars with level indicator
   Widget _buildUsageTrendBars(List<double> data) {
     if (data.isEmpty) {
       data = List.generate(7, (i) => 70.0 - (i * 5));
     }
 
     return SizedBox(
-      height: 24,
+      height: 50,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: data.asMap().entries.map((entry) {
           final index = entry.key;
           final value = entry.value;
+          final isLast = index == data.length - 1;
 
           // Color based on water level
           Color barColor;
@@ -1169,12 +1251,30 @@ class _SensorsScreenState extends State<SensorsScreen> {
           }
 
           return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: barColor.withOpacity(0.7 + (index * 0.04)),
-                borderRadius: BorderRadius.circular(4),
-              ),
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                // Background bar (full height, faded)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderDark.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                // Value bar (actual level with color based on value)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: (value / 100) * 50,
+                  decoration: BoxDecoration(
+                    color: isLast
+                        ? barColor
+                        : barColor.withOpacity(0.6 + (index * 0.04)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
             ),
           );
         }).toList(),
