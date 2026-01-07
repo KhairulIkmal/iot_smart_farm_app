@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import '../../../core/theme.dart';
+import '../../../services/user_counter_service.dart';
 
 /// ------------------------------------------------------------
 /// FARM LOCATION SCREEN
@@ -51,9 +52,20 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
         return;
       }
 
+      // Get the custom user document by Auth UID
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+
+      if (userDoc == null || !userDoc.exists) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final customUserId = userDoc.id;
+
       final doc = await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(customUserId)
           .collection('farm')
           .doc('location')
           .get();
@@ -195,9 +207,20 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
         return;
       }
 
+      // Get the custom user document by Auth UID
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+
+      if (userDoc == null || !userDoc.exists) {
+        _showErrorSnackBar('User not found');
+        return;
+      }
+
+      final customUserId = userDoc.id;
+
       await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(customUserId)
           .collection('farm')
           .doc('location')
           .set({

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -59,10 +61,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoadingWeather = true;
   String? _weatherError;
 
+  // Stream subscription for crop selection
+  StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize with currently selected crop if any
+    final currentSelection = _selectedCropService.selectedCrop;
+    if (currentSelection != null) {
+      _selectedCropId = currentSelection.cropId;
+      _selectedDeviceId = currentSelection.deviceId;
+      _selectedCropType = currentSelection.cropType;
+    }
+
     _loadWeather();
+
+    // Listen to selected crop changes from other screens
+    _cropSelectionSubscription = _selectedCropService.selectedCropStream.listen((selectedCrop) {
+      if (mounted && selectedCrop != null) {
+        setState(() {
+          _selectedCropId = selectedCrop.cropId;
+          _selectedDeviceId = selectedCrop.deviceId;
+          _selectedCropType = selectedCrop.cropType;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _cropSelectionSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadWeather() async {
@@ -550,7 +581,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// OVERVIEW HEADER
   /// ------------------------------------------------
   Widget _buildOverviewHeader() {
-    final now = DateTime.now();
+    // Use weather location's date if available, otherwise use device local time
+    final now = _weatherData?.localTime ?? DateTime.now();
     final months = [
       'Jan',
       'Feb',
@@ -777,7 +809,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        DateFormat('h:mm a').format(DateTime.now()),
+                        DateFormat('h:mm a').format(weather.localTime),
                         style: const TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
@@ -827,13 +859,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: _getTimeOfDayColor().withOpacity(0.1),
+                    color: _getTimeOfDayColor(weather.localTime).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
-                    _getTimeOfDayIcon(),
+                    _getTimeOfDayIcon(weather.localTime),
                     size: 48,
-                    color: _getTimeOfDayColor(),
+                    color: _getTimeOfDayColor(weather.localTime),
                   ),
                 ),
               ],
@@ -1044,8 +1076,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Get icon based on time of day
-  IconData _getTimeOfDayIcon() {
-    final hour = DateTime.now().hour;
+  IconData _getTimeOfDayIcon(DateTime time) {
+    final hour = time.hour;
 
     if (hour >= 5 && hour < 12) {
       // Morning (5 AM - 12 PM)
@@ -1063,8 +1095,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Get color based on time of day
-  Color _getTimeOfDayColor() {
-    final hour = DateTime.now().hour;
+  Color _getTimeOfDayColor(DateTime time) {
+    final hour = time.hour;
 
     if (hour >= 5 && hour < 12) {
       // Morning - Light orange/yellow

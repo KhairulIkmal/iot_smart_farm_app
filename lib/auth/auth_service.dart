@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../core/theme.dart';
 import '../services/data_migration_service.dart';
 import '../services/user_counter_service.dart';
+import '../services/selected_crop_service.dart';
 import 'login_screen.dart';
 import '../features/navigation/main_navigation.dart';
 import '../features/crop_management/crop_list_screen.dart';
@@ -144,6 +145,8 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
+    // Clear selected crop data before signing out
+    SelectedCropService().clearSelectedCrop();
     await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
   }
 

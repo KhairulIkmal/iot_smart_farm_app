@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../notification_service.dart';
 import '../models/notification_model.dart';
 
@@ -13,6 +14,7 @@ class DeviceMonitorService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final NotificationService _notificationService = NotificationService();
 
   Timer? _monitorTimer;
@@ -51,17 +53,34 @@ class DeviceMonitorService {
     if (user == null) return;
 
     try {
-      // Get all devices from RTDB sensors path
-      final sensorsRef = _rtdb.ref('sensors');
-      final snapshot = await sensorsRef.get();
+      // First, get devices assigned to this user from Firestore
+      final userCropsSnapshot = await _firestore
+          .collection('crops')
+          .where('farmer_id', isEqualTo: user.uid)
+          .get();
 
-      if (!snapshot.exists) return;
+      if (userCropsSnapshot.docs.isEmpty) return;
 
-      final devicesData = snapshot.value as Map<dynamic, dynamic>;
+      // Extract unique device IDs assigned to this user
+      final userDeviceIds = <String>{};
+      for (var doc in userCropsSnapshot.docs) {
+        final data = doc.data();
+        final deviceId = data['device_id'] as String?;
+        if (deviceId != null) {
+          userDeviceIds.add(deviceId);
+        }
+      }
 
-      for (var entry in devicesData.entries) {
-        final deviceId = entry.key as String;
-        final deviceData = entry.value as Map<dynamic, dynamic>;
+      if (userDeviceIds.isEmpty) return;
+
+      // Now only monitor devices that belong to this user
+      for (final deviceId in userDeviceIds) {
+        final deviceRef = _rtdb.ref('sensors/$deviceId');
+        final snapshot = await deviceRef.get();
+
+        if (!snapshot.exists) continue;
+
+        final deviceData = snapshot.value as Map<dynamic, dynamic>;
 
         // Check device online status
         await _checkDeviceOnlineStatus(deviceId, deviceData);

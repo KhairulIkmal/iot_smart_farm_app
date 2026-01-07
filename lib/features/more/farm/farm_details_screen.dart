@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/theme.dart';
+import '../../../services/user_counter_service.dart';
 
 /// ------------------------------------------------------------
 /// FARM DETAILS SCREEN
@@ -51,9 +52,17 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // Get the custom user document by Auth UID
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+
+      if (userDoc == null || !userDoc.exists) return;
+
+      final customUserId = userDoc.id;
+
       final doc = await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(customUserId)
           .collection('farm')
           .doc('details')
           .get();
@@ -77,9 +86,17 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // Get the custom user document by Auth UID
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+
+      if (userDoc == null || !userDoc.exists) return;
+
+      final customUserId = userDoc.id;
+
       await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(customUserId)
           .collection('farm')
           .doc('details')
           .set({
@@ -89,7 +106,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
           }, SetOptions(merge: true));
 
       // Also update farm_name in user document
-      await _firestore.collection('users').doc(user.uid).update({
+      await _firestore.collection('users').doc(customUserId).update({
         'farm_name': _farmNameController.text.trim(),
       });
 

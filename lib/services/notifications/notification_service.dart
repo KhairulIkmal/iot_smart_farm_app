@@ -61,17 +61,138 @@ class NotificationService {
   }
 
   /// Stream of all notifications for current user
+  /// Combines personal notifications and admin system notifications
   Stream<List<NotificationModel>>? getNotificationsStream() {
-    if (_notificationsRef == null) return null;
+    if (_userId == null || _notificationsRef == null) return null;
 
-    return _notificationsRef!
+    // Personal notifications from subcollection
+    final personalStream = _notificationsRef!
         .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
+        .snapshots();
+
+    // Combine personal notifications with admin system notifications
+    return personalStream.asyncMap((personalSnapshot) async {
+      // Get personal notifications
+      final personalNotifs = personalSnapshot.docs
           .map((doc) => NotificationModel.fromFirestore(doc))
           .toList();
+
+      // Get admin system notifications from flat collection
+      final adminSnapshot = await _firestore
+          .collection('notifications')
+          .where('farmer_id', isEqualTo: _userId)
+          .where('sentBy', isEqualTo: 'admin')
+          .get();
+
+      final adminNotifs = adminSnapshot.docs.map((doc) {
+        final data = doc.data();
+        final title = data['title'] ?? 'System Notification';
+        final message = data['message'] ?? '';
+
+        // Intelligently categorize admin notifications based on content
+        final category = _categorizeAdminNotification(title, message, data);
+
+        // Convert admin notification format to NotificationModel
+        return NotificationModel(
+          id: doc.id,
+          userId: _userId!,
+          severity: _parseSeverity(data['type'] ?? 'info'),
+          category: category,
+          title: title,
+          message: message,
+          timestamp: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          isRead: data['read'] ?? false,
+          data: {'sentBy': 'admin', 'type': data['type']},
+        );
+      }).toList();
+
+      // Combine and sort by timestamp
+      final combined = [...personalNotifs, ...adminNotifs];
+      combined.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return combined;
     });
+  }
+
+  /// Parse severity from admin notification type
+  NotificationSeverity _parseSeverity(String type) {
+    switch (type.toLowerCase()) {
+      case 'alert':
+        return NotificationSeverity.critical;
+      case 'warning':
+        return NotificationSeverity.warning;
+      case 'info':
+      case 'success':
+      default:
+        return NotificationSeverity.info;
+    }
+  }
+
+  /// Categorize admin notifications based on content
+  NotificationCategory _categorizeAdminNotification(
+    String title,
+    String message,
+    Map<String, dynamic> data,
+  ) {
+    final titleLower = title.toLowerCase();
+    final messageLower = message.toLowerCase();
+    final combinedText = '$titleLower $messageLower';
+
+    // Check if it's explicitly a system notification
+    if (data['category'] != null) {
+      final categoryStr = data['category'].toString().toLowerCase();
+      switch (categoryStr) {
+        case 'device':
+          return NotificationCategory.device;
+        case 'irrigation':
+        case 'water':
+          return NotificationCategory.irrigation;
+        case 'weather':
+          return NotificationCategory.weather;
+        case 'crop':
+          return NotificationCategory.crop;
+        case 'system':
+        default:
+          return NotificationCategory.system;
+      }
+    }
+
+    // Device-related keywords
+    if (combinedText.contains('device') ||
+        combinedText.contains('sensor') ||
+        combinedText.contains('offline') ||
+        combinedText.contains('online') ||
+        combinedText.contains('connected') ||
+        combinedText.contains('disconnected') ||
+        combinedText.contains('esp32')) {
+      return NotificationCategory.device;
+    }
+
+    // Irrigation/Water-related keywords
+    if (combinedText.contains('irrigation') ||
+        combinedText.contains('water') ||
+        combinedText.contains('pump') ||
+        combinedText.contains('valve')) {
+      return NotificationCategory.irrigation;
+    }
+
+    // Weather-related keywords
+    if (combinedText.contains('weather') ||
+        combinedText.contains('rain') ||
+        combinedText.contains('storm') ||
+        combinedText.contains('forecast')) {
+      return NotificationCategory.weather;
+    }
+
+    // Crop-related keywords
+    if (combinedText.contains('crop') ||
+        combinedText.contains('harvest') ||
+        combinedText.contains('plant') ||
+        combinedText.contains('soil')) {
+      return NotificationCategory.crop;
+    }
+
+    // Default to system for maintenance, updates, etc.
+    return NotificationCategory.system;
   }
 
   /// Stream of unread notifications count
@@ -85,26 +206,72 @@ class NotificationService {
   }
 
   /// Mark notification as read
+  /// Handles both personal notifications and admin system notifications
   Future<void> markAsRead(String notificationId) async {
-    if (_notificationsRef == null) return;
+    if (_userId == null) return;
 
-    await _notificationsRef!.doc(notificationId).update({
-      'isRead': true,
-    });
+    // Try to update in personal subcollection first
+    try {
+      final personalDoc = await _notificationsRef?.doc(notificationId).get();
+      if (personalDoc != null && personalDoc.exists) {
+        await _notificationsRef!.doc(notificationId).update({
+          'isRead': true,
+        });
+        return;
+      }
+    } catch (e) {
+      // Document doesn't exist in personal collection
+    }
+
+    // Try to update in flat admin notifications collection
+    try {
+      final adminDoc = await _firestore
+          .collection('notifications')
+          .doc(notificationId)
+          .get();
+
+      if (adminDoc.exists) {
+        await _firestore
+            .collection('notifications')
+            .doc(notificationId)
+            .update({
+          'read': true,
+        });
+      }
+    } catch (e) {
+      // Document doesn't exist in admin collection either
+      // Silent fail - notification may have been deleted
+    }
   }
 
   /// Mark all notifications as read
+  /// Handles both personal notifications and admin system notifications
   Future<void> markAllAsRead() async {
-    if (_notificationsRef == null) return;
+    if (_userId == null || _notificationsRef == null) return;
 
-    final unreadDocs = await _notificationsRef!
+    final batch = _firestore.batch();
+
+    // Mark personal notifications as read
+    final unreadPersonalDocs = await _notificationsRef!
         .where('isRead', isEqualTo: false)
         .get();
 
-    final batch = _firestore.batch();
-    for (var doc in unreadDocs.docs) {
+    for (var doc in unreadPersonalDocs.docs) {
       batch.update(doc.reference, {'isRead': true});
     }
+
+    // Mark admin notifications as read
+    final unreadAdminDocs = await _firestore
+        .collection('notifications')
+        .where('farmer_id', isEqualTo: _userId)
+        .where('sentBy', isEqualTo: 'admin')
+        .where('read', isEqualTo: false)
+        .get();
+
+    for (var doc in unreadAdminDocs.docs) {
+      batch.update(doc.reference, {'read': true});
+    }
+
     await batch.commit();
   }
 

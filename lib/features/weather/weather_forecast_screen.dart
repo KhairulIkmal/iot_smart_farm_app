@@ -441,10 +441,13 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
                         ? item.weather.first.main
                         : 'Clear';
 
+                    // Convert to local time using timezone offset
+                    final localTime = _forecastData!.toLocalTime(item.dateTime);
+
                     return _buildHourlyItem(
                       time: isNow
                           ? 'Now'
-                          : DateFormat('h a').format(item.dateTime),
+                          : DateFormat('h a').format(localTime),
                       icon: _getWeatherIcon(condition),
                       iconColor: _getWeatherIconColorFromCondition(condition),
                       temperature: '${item.temperature.round()}°',

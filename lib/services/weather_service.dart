@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_counter_service.dart';
 
 /// ------------------------------------------------------------
 /// WEATHER SERVICE
@@ -26,9 +27,17 @@ class WeatherService {
       final user = _auth.currentUser;
       if (user == null) return null;
 
+      // Get the custom user document by Auth UID
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+
+      if (userDoc == null || !userDoc.exists) return null;
+
+      final customUserId = userDoc.id;
+
       final doc = await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(customUserId)
           .collection('farm')
           .doc('location')
           .get();
@@ -305,6 +314,7 @@ class WeatherData {
   final DateTime sunrise;
   final DateTime sunset;
   final String cityName;
+  final int timezoneOffset; // Offset from UTC in seconds
 
   WeatherData({
     required this.temperature,
@@ -323,6 +333,7 @@ class WeatherData {
     required this.sunrise,
     required this.sunset,
     required this.cityName,
+    required this.timezoneOffset,
   });
 
   factory WeatherData.fromJson(Map<String, dynamic> json) {
@@ -349,11 +360,18 @@ class WeatherData {
       sunrise: DateTime.fromMillisecondsSinceEpoch(sys['sunrise'] * 1000),
       sunset: DateTime.fromMillisecondsSinceEpoch(sys['sunset'] * 1000),
       cityName: json['name'] ?? '',
+      timezoneOffset: json['timezone'] ?? 0, // Offset from UTC in seconds
     );
   }
 
   /// Get weather icon URL
   String get iconUrl => 'https://openweathermap.org/img/wn/$icon@2x.png';
+
+  /// Get current time in the weather location's timezone
+  DateTime get localTime {
+    final utcNow = DateTime.now().toUtc();
+    return utcNow.add(Duration(seconds: timezoneOffset));
+  }
 
   /// Check if it's currently raining
   bool get isRaining => main.toLowerCase().contains('rain');
@@ -369,23 +387,42 @@ class WeatherData {
 class WeatherForecast {
   final List<ForecastItem> list;
   final String cityName;
+  final int timezoneOffset; // Offset from UTC in seconds
 
-  WeatherForecast({required this.list, required this.cityName});
+  WeatherForecast({
+    required this.list,
+    required this.cityName,
+    required this.timezoneOffset,
+  });
 
   factory WeatherForecast.fromJson(Map<String, dynamic> json) {
     final List<dynamic> listData = json['list'];
+    final cityData = json['city'];
     return WeatherForecast(
       list: listData.map((item) => ForecastItem.fromJson(item)).toList(),
-      cityName: json['city']['name'] ?? '',
+      cityName: cityData['name'] ?? '',
+      timezoneOffset: cityData['timezone'] ?? 0, // Timezone offset in seconds
     );
+  }
+
+  /// Convert UTC time to local time based on timezone offset
+  DateTime toLocalTime(DateTime utcTime) {
+    return utcTime.add(Duration(seconds: timezoneOffset));
+  }
+
+  /// Get current time in this forecast location's timezone
+  DateTime get localNow {
+    final utcNow = DateTime.now().toUtc();
+    return utcNow.add(Duration(seconds: timezoneOffset));
   }
 
   /// Get forecast for specific day
   List<ForecastItem> getForecastForDay(int daysFromNow) {
-    final targetDate = DateTime.now().add(Duration(days: daysFromNow));
+    final targetDate = localNow.add(Duration(days: daysFromNow));
     return list.where((item) {
-      return item.dateTime.day == targetDate.day &&
-          item.dateTime.month == targetDate.month;
+      final localTime = toLocalTime(item.dateTime);
+      return localTime.day == targetDate.day &&
+          localTime.month == targetDate.month;
     }).toList();
   }
 
@@ -394,8 +431,8 @@ class WeatherForecast {
     final Map<String, List<ForecastItem>> dailyData = {};
 
     for (final item in list) {
-      final key =
-          '${item.dateTime.year}-${item.dateTime.month}-${item.dateTime.day}';
+      final localTime = toLocalTime(item.dateTime);
+      final key = '${localTime.year}-${localTime.month}-${localTime.day}';
       dailyData.putIfAbsent(key, () => []);
       dailyData[key]!.add(item);
     }
@@ -409,7 +446,7 @@ class WeatherForecast {
       final maxPop = items.map((i) => i.pop).reduce((a, b) => a > b ? a : b);
 
       return DailySummary(
-        date: items.first.dateTime,
+        date: toLocalTime(items.first.dateTime),
         tempMin: temps.reduce((a, b) => a < b ? a : b),
         tempMax: temps.reduce((a, b) => a > b ? a : b),
         hasRain: hasRain,

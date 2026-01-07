@@ -6,6 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../../core/theme.dart';
 import '../../auth/auth_service.dart';
 import '../../services/selected_crop_service.dart';
+import '../navigation/main_navigation.dart';
 import 'claim_device_screen.dart';
 import 'unclaim_device_dialog.dart';
 
@@ -782,8 +783,8 @@ class _CropListScreenState extends State<CropListScreen> {
     // If assign was successful, navigate to main navigation (Dashboard tab)
     if (result == true && mounted) {
       // Replace the current screen with MainNavigation and go to Dashboard
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/main',
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
         (route) => false,
       );
     }
@@ -803,8 +804,8 @@ class _CropListScreenState extends State<CropListScreen> {
     );
 
     // Navigate back to main navigation (Dashboard tab)
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/main',
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const MainNavigation()),
       (route) => false,
     );
   }

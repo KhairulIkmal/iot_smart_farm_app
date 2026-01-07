@@ -8,6 +8,7 @@ import 'dart:io';
 
 import '../../../core/theme.dart';
 import '../../../widgets/index.dart';
+import '../../../services/user_counter_service.dart';
 
 /// ------------------------------------------------------------
 /// PROFILE SCREEN
@@ -63,15 +64,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      final doc = await _firestore.collection('users').doc(user.uid).get();
+      // Get the custom user document by Auth UID
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
 
-      if (doc.exists) {
-        final data = doc.data()!;
-        _nameController.text = data['name'] ?? data['displayName'] ?? '';
-        _phoneController.text = data['phone'] ?? '';
-        _farmNameController.text = data['farm_name'] ?? '';
-        _photoURL = data['photoURL'];
-      }
+      if (userDoc == null || !userDoc.exists) return;
+
+      // Load user data from the document
+      final data = userDoc.data() as Map<String, dynamic>;
+      _nameController.text = data['name'] ?? data['displayName'] ?? '';
+      _phoneController.text = data['phone'] ?? '';
+      _farmNameController.text = data['farm_name'] ?? '';
+      _photoURL = data['photoURL'];
     } finally {
       setState(() => _isLoading = false);
     }
@@ -86,10 +90,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      await _firestore.collection('users').doc(user.uid).set({
+      // Get the custom user document
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+
+      if (userDoc == null) return;
+      final customUserId = userDoc.id;
+
+      // Update user document with custom ID
+      await _firestore.collection('users').doc(customUserId).set({
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'farm_name': _farmNameController.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Also update farm details to keep them in sync
+      await _firestore
+          .collection('users')
+          .doc(customUserId)
+          .collection('farm')
+          .doc('details')
+          .set({
+        'name': _farmNameController.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -271,15 +294,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // Get the custom user document
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+      if (userDoc == null) return;
+      final customUserId = userDoc.id;
+
       // Step 3: Upload to Firebase Storage
-      final storageRef = _storage.ref().child('profile_photos/${user.uid}');
+      final storageRef = _storage.ref().child('profile_photos/$customUserId');
       await storageRef.putFile(File(croppedFile.path));
 
       // Get download URL
       final downloadURL = await storageRef.getDownloadURL();
 
-      // Update Firestore
-      await _firestore.collection('users').doc(user.uid).set({
+      // Update Firestore with custom user ID
+      await _firestore.collection('users').doc(customUserId).set({
         'photoURL': downloadURL,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -331,16 +360,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // Get the custom user document
+      final userCounterService = UserCounterService();
+      final userDoc = await userCounterService.getUserByAuthUid(user.uid);
+      if (userDoc == null) return;
+      final customUserId = userDoc.id;
+
       // Delete from Storage
       try {
-        final storageRef = _storage.ref().child('profile_photos/${user.uid}');
+        final storageRef = _storage.ref().child('profile_photos/$customUserId');
         await storageRef.delete();
       } catch (_) {
         // Photo might not exist in storage
       }
 
-      // Update Firestore
-      await _firestore.collection('users').doc(user.uid).set({
+      // Update Firestore with custom user ID
+      await _firestore.collection('users').doc(customUserId).set({
         'photoURL': FieldValue.delete(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

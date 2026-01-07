@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/theme.dart';
 import '../../services/notifications/notification_service.dart';
+import '../../services/user_counter_service.dart';
 import 'profile/profile_screen.dart';
 import 'farm/farm_location_screen.dart';
 import 'farm/farm_details_screen.dart';
@@ -173,114 +174,146 @@ class _MoreScreenState extends State<MoreScreen> {
   Widget _buildProfileCard() {
     final user = _auth.currentUser;
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _firestore.collection('users').doc(user?.uid).snapshots(),
-      builder: (context, snapshot) {
-        String name = 'User';
-        String farmName = 'My Farm';
-        String email = user?.email ?? '';
-        String? photoURL;
-
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>?;
-          name = data?['name'] ?? data?['displayName'] ?? 'User';
-          farmName = data?['farm_name'] ?? 'My Farm';
-          photoURL = data?['photoURL'];
+    return FutureBuilder<DocumentSnapshot?>(
+      future: user != null
+          ? UserCounterService().getUserByAuthUid(user.uid)
+          : null,
+      builder: (context, userDocSnapshot) {
+        if (!userDocSnapshot.hasData || userDocSnapshot.data == null) {
+          return _buildProfileCardContent(
+            name: 'User',
+            farmName: 'My Farm',
+            email: user?.email ?? '',
+            photoURL: null,
+          );
         }
 
-        return GestureDetector(
-          onTap: () => _navigateTo(const ProfileScreen()),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.borderDark),
-            ),
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.primary.withOpacity(0.3),
-                      width: 2,
-                    ),
-                  ),
-                  child: photoURL != null
-                      ? ClipOval(
-                          child: Image.network(
-                            photoURL,
-                            width: 70,
-                            height: 70,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Center(
-                                child: Text(
-                                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                                  style: const TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        )
-                      : Center(
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        farmName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.7),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        email,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.5)),
-              ],
-            ),
-          ),
+        final customUserId = userDocSnapshot.data!.id;
+
+        return StreamBuilder<DocumentSnapshot>(
+          stream: _firestore.collection('users').doc(customUserId).snapshots(),
+          builder: (context, snapshot) {
+            String name = 'User';
+            String farmName = 'My Farm';
+            String email = user?.email ?? '';
+            String? photoURL;
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>?;
+              name = data?['name'] ?? data?['displayName'] ?? 'User';
+              farmName = data?['farm_name'] ?? 'My Farm';
+              photoURL = data?['photoURL'];
+            }
+
+            return _buildProfileCardContent(
+              name: name,
+              farmName: farmName,
+              email: email,
+              photoURL: photoURL,
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _buildProfileCardContent({
+    required String name,
+    required String farmName,
+    required String email,
+    required String? photoURL,
+  }) {
+    return GestureDetector(
+      onTap: () => _navigateTo(const ProfileScreen()),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDark,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
+              child: photoURL != null
+                  ? ClipOval(
+                      child: Image.network(
+                        photoURL,
+                        width: 70,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    farmName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.5)),
+          ],
+        ),
+      ),
     );
   }
 

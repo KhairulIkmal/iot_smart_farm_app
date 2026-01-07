@@ -1734,8 +1734,13 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         await _firestore.collection('irrigation_rules').add(ruleData);
       }
 
-      // Update mode in commands path so ESP32 receives it via stream listener
-      await _rtdb.ref('commands/$_selectedDeviceId/mode').set('auto');
+      // Update mode AND thresholds in commands path so ESP32 receives them
+      await _rtdb.ref('commands/$_selectedDeviceId').update({
+        'mode': 'auto',
+        'soilThreshLow': _soilMin.toInt(),    // ESP32 reads this for auto control
+        'soilThreshHigh': _soilMax.toInt(),   // ESP32 reads this for auto control
+        'minWaterLevel': 15,                   // Minimum tank level to allow pump
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -24,8 +24,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final PageController _pageController = PageController();
   final ScrollController _tabScrollController = ScrollController();
   final ValueNotifier<int> _selectedFilterIndex = ValueNotifier<int>(0);
-  final List<String> _filters = ['All', 'Critical', 'Devices', 'Water', 'Crops', 'Weather', 'Archived'];
-  final List<GlobalKey> _tabKeys = List.generate(7, (index) => GlobalKey());
+  final List<String> _filters = ['All', 'Critical', 'Devices', 'Water', 'Crops', 'Weather', 'System', 'Archived'];
+  final List<GlobalKey> _tabKeys = List.generate(8, (index) => GlobalKey());
 
   @override
   void dispose() {
@@ -321,6 +321,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return notifications
             .where((n) => n.category == NotificationCategory.weather && !n.isRead)
             .length;
+      case 'System':
+        return notifications
+            .where((n) => n.category == NotificationCategory.system && !n.isRead)
+            .length;
       default:
         return 0;
     }
@@ -338,6 +342,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.eco;
       case 'Weather':
         return Icons.wb_sunny;
+      case 'System':
+        return Icons.notifications_active;
       case 'Archived':
         return Icons.archive_outlined;
       default:
@@ -431,6 +437,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'Weather':
         return notifications
             .where((n) => n.category == NotificationCategory.weather)
+            .toList();
+      case 'System':
+        return notifications
+            .where((n) => n.category == NotificationCategory.system)
             .toList();
       case 'Archived':
         return notifications.where((n) => n.isRead).toList();
