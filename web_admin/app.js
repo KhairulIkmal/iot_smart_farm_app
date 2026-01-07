@@ -1085,27 +1085,68 @@ function editUser(userId) {
 
 // Delete User
 async function deleteUser(userId, userName) {
-    if (!confirm(`Are you sure you want to delete user "${userName}"?\n\nThis action cannot be undone and will:\n- Delete the user account\n- Delete all farm data\n- Delete all crops associated with this user`)) {
+    if (!confirm(`Are you sure you want to delete user "${userName}"?\n\nThis action cannot be undone and will:\n- Delete the user account\n- Delete all farm data\n- Delete all crops\n- Unassign all devices (set back to unassigned)`)) {
         return;
     }
 
     try {
-        // Delete user document and subcollections
-        await db.collection('users').doc(userId).delete();
+        // Get user's Firebase Auth UID first
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+        const authUid = userData?.uid || userId;
 
-        // Delete user's crops
-        const cropsSnapshot = await db.collection('crops')
-            .where('farmer_id', '==', userId)
+        // Step 1: Find and delete user's crops (try both custom userId and Firebase Auth UID)
+        let cropsSnapshot = await db.collection('crops')
+            .where('farmer_id', '==', authUid)
             .get();
 
+        // If no crops found with Auth UID, try with custom userId
+        if (cropsSnapshot.empty && authUid !== userId) {
+            cropsSnapshot = await db.collection('crops')
+                .where('farmer_id', '==', userId)
+                .get();
+        }
+
         const deletePromises = [];
+        const deviceIds = new Set(); // Track devices to unassign
+
+        // Collect device IDs and prepare crop deletion
         cropsSnapshot.forEach(doc => {
+            const cropData = doc.data();
+            if (cropData.device_id) {
+                deviceIds.add(cropData.device_id);
+            }
             deletePromises.push(doc.ref.delete());
         });
 
+        // Step 2: Unassign all devices (set status back to 'unassigned')
+        for (const deviceId of deviceIds) {
+            deletePromises.push(
+                db.collection('devices').doc(deviceId).update({
+                    status: 'unassigned',
+                    assigned_to: null,
+                    assigned_at: null
+                })
+            );
+        }
+
+        // Step 3: Delete user's farm subcollections (location, details)
+        try {
+            const farmDetailsDoc = db.collection('users').doc(userId).collection('farm').doc('details');
+            const farmLocationDoc = db.collection('users').doc(userId).collection('farm').doc('location');
+            deletePromises.push(farmDetailsDoc.delete());
+            deletePromises.push(farmLocationDoc.delete());
+        } catch (e) {
+            console.log('Farm subcollections may not exist, continuing...');
+        }
+
+        // Step 4: Delete user document
+        deletePromises.push(db.collection('users').doc(userId).delete());
+
+        // Execute all deletions and updates
         await Promise.all(deletePromises);
 
-        alert(`User "${userName}" deleted successfully!`);
+        alert(`User "${userName}" deleted successfully!\n\n- ${cropsSnapshot.size} crops deleted\n- ${deviceIds.size} devices unassigned`);
         loadAllUsers(); // Reload the table
     } catch (error) {
         console.error('Error deleting user:', error);
@@ -1512,24 +1553,61 @@ async function viewFarmDetails(farmId) {
             devicesContainer.innerHTML = devicesHTML;
         }
 
-        // Render crops
+        // Render crops with detailed information
         const cropsContainer = document.getElementById('modal-farm-crops');
         if (crops.length === 0) {
             cropsContainer.innerHTML = '<p class="text-[#9db9a6] text-sm">No crops planted yet</p>';
         } else {
-            let cropsHTML = '<div class="space-y-2">';
+            let cropsHTML = '<div class="space-y-3">';
             crops.forEach(crop => {
-                const statusClass = crop.status === 'active' ? 'bg-green-500/10 text-green-500' :
-                                  crop.status === 'harvested' ? 'bg-blue-500/10 text-blue-500' :
-                                  'bg-red-500/10 text-red-500';
+                const statusClass = crop.status === 'active' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                  crop.status === 'harvested' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                                  'bg-red-500/10 text-red-500 border-red-500/20';
+
+                // Format created date
+                let createdDate = 'N/A';
+                if (crop.createdAt) {
+                    try {
+                        createdDate = new Date(crop.createdAt.toDate()).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                        });
+                    } catch (e) {
+                        createdDate = 'N/A';
+                    }
+                }
 
                 cropsHTML += `
-                    <div class="flex items-center justify-between p-3 bg-[#1c271f] rounded">
-                        <div>
-                            <p class="text-white font-medium">${crop.crop_type || 'Unknown'}</p>
-                            <p class="text-xs text-[#9db9a6]">Device: ${crop.device_id || 'N/A'}</p>
+                    <div class="p-4 bg-[#1c271f] rounded-lg border border-[#28392e]">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="material-symbols-outlined text-primary text-lg">eco</span>
+                                    <h5 class="text-white font-semibold text-base">${crop.crop_type || 'Unknown Crop'}</h5>
+                                </div>
+                                ${crop.field_name ? `<p class="text-[#9db9a6] text-sm ml-7">Field: ${crop.field_name}</p>` : ''}
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold border ${statusClass}">${crop.status || 'active'}</span>
                         </div>
-                        <span class="px-2 py-1 rounded text-xs font-medium ${statusClass}">${crop.status || 'active'}</span>
+
+                        <div class="grid grid-cols-2 gap-3 ml-7">
+                            <div>
+                                <p class="text-[#9db9a6] text-xs mb-1">Device ID</p>
+                                <p class="text-white text-sm font-mono">${crop.device_id || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p class="text-[#9db9a6] text-xs mb-1">Planted Date</p>
+                                <p class="text-white text-sm">${createdDate}</p>
+                            </div>
+                        </div>
+
+                        ${crop.notes ? `
+                            <div class="mt-3 pt-3 border-t border-[#28392e] ml-7">
+                                <p class="text-[#9db9a6] text-xs mb-1">Notes</p>
+                                <p class="text-white text-sm">${crop.notes}</p>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             });

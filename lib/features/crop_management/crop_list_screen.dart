@@ -9,6 +9,7 @@ import '../../services/selected_crop_service.dart';
 import '../navigation/main_navigation.dart';
 import 'claim_device_screen.dart';
 import 'unclaim_device_dialog.dart';
+import 'edit_crop_screen.dart';
 
 /// ------------------------------------------------------------
 /// CROP LIST SCREEN (CROP MANAGEMENT)
@@ -499,12 +500,16 @@ class _CropListScreenState extends State<CropListScreen> {
                 final cropType = data['crop_type'] as String? ?? 'Unknown';
                 final deviceId = data['device_id'] as String? ?? '';
                 final plantingDate = data['planting_date'] as Timestamp?;
+                final fieldName = data['field_name'] as String? ?? 'Field A';
+                final notes = data['notes'] as String? ?? '';
 
                 return _buildCropCard(
                   cropId: cropId,
                   cropType: cropType,
                   deviceId: deviceId,
                   plantingDate: plantingDate,
+                  fieldName: fieldName,
+                  notes: notes,
                 );
               }).toList(),
             );
@@ -519,6 +524,8 @@ class _CropListScreenState extends State<CropListScreen> {
     required String cropType,
     required String deviceId,
     Timestamp? plantingDate,
+    required String fieldName,
+    required String notes,
   }) {
     return GestureDetector(
       onTap: () => _navigateToDashboard(
@@ -628,7 +635,7 @@ class _CropListScreenState extends State<CropListScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '$cropType - Field A',
+                                  '$cropType - $fieldName',
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -656,10 +663,41 @@ class _CropListScreenState extends State<CropListScreen> {
                               ],
                             ),
                           ),
-                          // More Options Button
+                          // Action Buttons
                           Row(
                             children: [
-                              // Unclaim Button
+                              // Edit Button
+                              ElevatedButton(
+                                onPressed: () => _showEditCropDialog(
+                                  cropId: cropId,
+                                  cropType: cropType,
+                                  fieldName: fieldName,
+                                  notes: notes,
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary.withOpacity(
+                                    0.2,
+                                  ),
+                                  foregroundColor: AppColors.primary,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Edit',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Delete Button
                               ElevatedButton(
                                 onPressed: () => _showUnclaimDialog(
                                   cropId: cropId,
@@ -686,19 +724,6 @@ class _CropListScreenState extends State<CropListScreen> {
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceDark,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(
-                                  Icons.more_horiz,
-                                  color: Colors.white,
-                                  size: 20,
                                 ),
                               ),
                             ],
@@ -808,6 +833,44 @@ class _CropListScreenState extends State<CropListScreen> {
       MaterialPageRoute(builder: (_) => const MainNavigation()),
       (route) => false,
     );
+  }
+
+  Future<void> _showEditCropDialog({
+    required String cropId,
+    required String cropType,
+    required String fieldName,
+    required String notes,
+  }) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditCropScreen(
+          cropId: cropId,
+          currentCropType: cropType,
+          currentFieldName: fieldName,
+          currentNotes: notes,
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Crop updated successfully'),
+            ],
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _showUnclaimDialog({
