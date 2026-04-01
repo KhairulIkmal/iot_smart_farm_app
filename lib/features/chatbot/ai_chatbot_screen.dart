@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 import '../../core/theme.dart';
+import '../../services/claude_service.dart';
+import '../../services/rtdb_service.dart';
+import '../../services/selected_crop_service.dart';
 import '../navigation/main_navigation.dart';
 
 /// ------------------------------------------------------------
@@ -24,6 +28,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isLoading = false;
   Map<String, dynamic>? _recommendations;
   String? _userCropId;
+
+  // Chat state
+  final List<Map<String, String>> _chatMessages = [];
+  final TextEditingController _chatController = TextEditingController();
+  final ScrollController _chatScrollController = ScrollController();
+  bool _isChatLoading = false;
 
   final List<String> _cropTypes = [
     'Tomato',
@@ -170,6 +180,354 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _recommendations = _cropDatabase[_selectedCrop];
   }
 
+  @override
+  void dispose() {
+    _chatController.dispose();
+    _chatScrollController.dispose();
+    super.dispose();
+  }
+
+  Future<_FarmContext> _fetchFarmContext() async {
+    final deviceId = SelectedCropService().selectedCrop?.deviceId;
+    if (deviceId == null) return _FarmContext.empty();
+
+    try {
+      final rtdb = RtdbService();
+      final results = await Future.wait([
+        rtdb.getLiveData(deviceId),
+        rtdb.getSensorHealth(deviceId),
+        rtdb.isDeviceOnline(deviceId),
+        rtdb.getPumpStatus(deviceId),
+      ]);
+
+      final liveSnapshot = results[0] as DataSnapshot;
+      final sensorHealth = results[1] as Map<String, String>;
+      final isOnline = results[2] as bool;
+      final pumpStatus = results[3] as String?;
+
+      final sensorData = liveSnapshot.exists && liveSnapshot.value != null
+          ? Map<String, dynamic>.from(liveSnapshot.value as Map)
+          : <String, dynamic>{};
+
+      return _FarmContext(
+        sensorData: sensorData,
+        sensorHealth: sensorHealth,
+        deviceOnline: isOnline,
+        pumpStatus: pumpStatus,
+      );
+    } catch (_) {
+      return _FarmContext.empty();
+    }
+  }
+
+  Future<void> _openChatPanel() async {
+    if (_chatMessages.isEmpty) {
+      setState(() => _isChatLoading = true);
+      final ctx = await _fetchFarmContext();
+
+      final soil = ctx.sensorData['soil']?.toString() ?? 'N/A';
+      final ph = ctx.sensorData['ph']?.toString() ?? 'N/A';
+      final temp = ctx.sensorData['temp']?.toString() ?? 'N/A';
+      final statusLabel = ctx.deviceOnline ? 'ONLINE' : 'OFFLINE';
+
+      _chatMessages.add({
+        'role': 'assistant',
+        'text':
+            'Hello! I\'m your AI farm advisor.\n\nDevice: $statusLabel | Crop: $_selectedCrop\nSoil: $soil% | pH: $ph | Temp: $temp°C\n\nWhat would you like to know?',
+      });
+      setState(() => _isChatLoading = false);
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildChatBottomSheet(),
+    );
+  }
+
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty) return;
+    _chatController.clear();
+
+    setState(() {
+      _chatMessages.add({'role': 'user', 'text': text.trim()});
+      _isChatLoading = true;
+    });
+    _scrollToBottom();
+
+    try {
+      final ctx = await _fetchFarmContext();
+      final reply = await ClaudeService().askCropAdvisor(
+        cropType: _selectedCrop,
+        sensorData: ctx.sensorData,
+        sensorHealth: ctx.sensorHealth,
+        deviceOnline: ctx.deviceOnline,
+        pumpStatus: ctx.pumpStatus,
+        userMessage: text.trim(),
+      );
+      setState(() {
+        _chatMessages.add({'role': 'assistant', 'text': reply});
+        _isChatLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _chatMessages.add({
+          'role': 'assistant',
+          'text': 'Sorry, I couldn\'t connect right now. Please try again.',
+        });
+        _isChatLoading = false;
+      });
+    }
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatScrollController.hasClients) {
+        _chatScrollController.animateTo(
+          _chatScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Widget _buildChatBottomSheet() {
+    return StatefulBuilder(
+      builder: (context, setSheetState) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: AppColors.backgroundDark,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderDark,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.smart_toy_outlined,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'AI Farm Advisor',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Powered by Claude AI • $_selectedCrop',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(color: AppColors.borderDark, height: 1),
+                  // Messages
+                  Expanded(
+                    child: ListView.builder(
+                      controller: _chatScrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _chatMessages.length + (_isChatLoading ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _chatMessages.length) {
+                          return _buildTypingIndicator();
+                        }
+                        final msg = _chatMessages[index];
+                        final isUser = msg['role'] == 'user';
+                        return _buildMessageBubble(
+                          text: msg['text'] ?? '',
+                          isUser: isUser,
+                        );
+                      },
+                    ),
+                  ),
+                  // Input
+                  Container(
+                    padding: EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 12,
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDark,
+                      border: Border(
+                        top: BorderSide(color: AppColors.borderDark),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _chatController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: 'Ask about your $_selectedCrop...',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                              ),
+                              filled: true,
+                              fillColor: AppColors.backgroundDark,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            onSubmitted: (text) {
+                              _sendMessage(text);
+                              setSheetState(() {});
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            _sendMessage(_chatController.text);
+                            setSheetState(() {});
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.send_rounded,
+                              color: AppColors.backgroundDark,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMessageBubble({required String text, required bool isUser}) {
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isUser ? AppColors.primary : AppColors.surfaceDark,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isUser ? 16 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 16),
+          ),
+          border: isUser
+              ? null
+              : Border.all(color: AppColors.borderDark),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isUser ? AppColors.backgroundDark : Colors.white,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDark,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4),
+          ),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Analyzing your farm...',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadUserCrop() async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -259,29 +617,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           ],
         ),
         GestureDetector(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.white),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'AI Chat feature is coming soon! Stay tuned for intelligent farming assistance.',
-                      ),
-                    ),
-                  ],
-                ),
-                backgroundColor: AppColors.info,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          },
+          onTap: _openChatPanel,
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -687,4 +1023,25 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       }
     }
   }
+}
+
+class _FarmContext {
+  final Map<String, dynamic> sensorData;
+  final Map<String, String> sensorHealth;
+  final bool deviceOnline;
+  final String? pumpStatus;
+
+  _FarmContext({
+    required this.sensorData,
+    required this.sensorHealth,
+    required this.deviceOnline,
+    required this.pumpStatus,
+  });
+
+  factory _FarmContext.empty() => _FarmContext(
+        sensorData: {},
+        sensorHealth: {},
+        deviceOnline: false,
+        pumpStatus: null,
+      );
 }

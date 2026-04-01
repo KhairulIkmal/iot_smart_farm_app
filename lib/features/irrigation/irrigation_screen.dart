@@ -77,6 +77,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   double _phMax = 7.5;
 
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
+  StreamSubscription<DatabaseEvent>? _pumpStatusSubscription;
 
   @override
   void initState() {
@@ -129,6 +130,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     _tabController.dispose();
     _audioPlayer.dispose();
     _cropSelectionSubscription?.cancel();
+    _pumpStatusSubscription?.cancel();
     super.dispose();
   }
 
@@ -180,10 +182,16 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   void _loadPumpStatus() {
     if (_selectedDeviceId == null) return;
 
-    _rtdb.ref('commands/$_selectedDeviceId/pump').onValue.listen((event) {
-      if (event.snapshot.value != null) {
+    // Cancel existing subscription to prevent memory leaks and race conditions
+    _pumpStatusSubscription?.cancel();
+
+    // IMPORTANT: Read actual pump state from ESP32, not from commands!
+    // Reading from sensors/live/pumpOn ensures button reflects reality
+    // Reading from commands/pump only shows last command sent (not actual state)
+    _pumpStatusSubscription = _rtdb.ref('sensors/$_selectedDeviceId/live/pumpOn').onValue.listen((event) {
+      if (event.snapshot.value != null && mounted) {
         setState(() {
-          _isPumpActive = event.snapshot.value == 'on';
+          _isPumpActive = event.snapshot.value == true;
         });
       }
     });
