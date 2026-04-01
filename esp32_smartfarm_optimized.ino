@@ -21,8 +21,8 @@
 #include <time.h> // For NTP time
 
 // ================= Credentials =================
-#define WIFI_SSID "AMAT_2.4@unifi"
-#define WIFI_PASSWORD "AMAT631008"
+#define WIFI_SSID "Kairi"
+#define WIFI_PASSWORD "Ikmal0341"
 #define FIREBASE_API_KEY "AIzaSyDKEGXzw8kX7k4YvjjxQF4_4AzZYyH_xmQ"
 #define FIREBASE_DB_URL "https://iot-smartfarm-system-default-rtdb.asia-southeast1.firebasedatabase.app"
 
