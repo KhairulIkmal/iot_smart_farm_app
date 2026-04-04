@@ -460,7 +460,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -471,20 +471,159 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             bottomLeft: Radius.circular(isUser ? 16 : 4),
             bottomRight: Radius.circular(isUser ? 4 : 16),
           ),
-          border: isUser
-              ? null
-              : Border.all(color: AppColors.borderDark),
+          border: isUser ? null : Border.all(color: AppColors.borderDark),
         ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: isUser ? AppColors.backgroundDark : Colors.white,
-            fontSize: 14,
-            height: 1.4,
-          ),
-        ),
+        child: isUser
+            ? Text(
+                text,
+                style: const TextStyle(
+                  color: AppColors.backgroundDark,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              )
+            : _buildRichMessage(text),
       ),
     );
+  }
+
+  /// Parses markdown-like AI responses into rich Flutter widgets
+  Widget _buildRichMessage(String text) {
+    final lines = text.split('\n');
+    final widgets = <Widget>[];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.trim().isEmpty) {
+        widgets.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      // Bullet point
+      final bulletMatch = RegExp(r'^[-*•]\s+(.+)').firstMatch(line);
+      if (bulletMatch != null) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 2, bottom: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('• ', style: TextStyle(color: AppColors.primary, fontSize: 14, height: 1.5)),
+              Expanded(child: _buildInlineRich(bulletMatch.group(1)!)),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      // Numbered list
+      final numMatch = RegExp(r'^(\d+)\.\s+(.+)').firstMatch(line);
+      if (numMatch != null) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 2, bottom: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${numMatch.group(1)}. ',
+                  style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.5)),
+              Expanded(child: _buildInlineRich(numMatch.group(2)!)),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      // Heading (## or ###)
+      final headingMatch = RegExp(r'^#{1,3}\s+(.+)').firstMatch(line);
+      if (headingMatch != null) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 2),
+          child: Text(
+            headingMatch.group(1)!,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              height: 1.4,
+            ),
+          ),
+        ));
+        continue;
+      }
+
+      // Normal line
+      widgets.add(_buildInlineRich(line));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  /// Parses inline **bold** and *italic* within a line
+  Widget _buildInlineRich(String text) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'(\*\*[^*]+\*\*|\*[^*]+\*)');
+    int last = 0;
+
+    for (final match in regex.allMatches(text)) {
+      if (match.start > last) {
+        spans.add(TextSpan(
+          text: text.substring(last, match.start),
+          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+        ));
+      }
+      final raw = match.group(0)!;
+      if (raw.startsWith('**')) {
+        final inner = raw.substring(2, raw.length - 2);
+        spans.add(TextSpan(
+          text: inner,
+          style: TextStyle(
+            color: _getSensorColor(inner),
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            height: 1.5,
+          ),
+        ));
+      } else {
+        spans.add(TextSpan(
+          text: raw.substring(1, raw.length - 1),
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            fontStyle: FontStyle.italic,
+            height: 1.5,
+          ),
+        ));
+      }
+      last = match.end;
+    }
+
+    if (last < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(last),
+        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+      ));
+    }
+
+    return RichText(text: TextSpan(children: spans));
+  }
+
+  /// Maps bold keywords to sensor-themed colors
+  Color _getSensorColor(String text) {
+    final t = text.toLowerCase();
+    if (t.contains('soil') || t.contains('moisture')) return AppColors.soilMoisture;
+    if (t.contains('ph') || t.contains('acid') || t.contains('alkalin')) return AppColors.phLevel;
+    if (t.contains('temp') || t.contains('heat') || t.contains('hot') || t.contains('cold')) return AppColors.temperature;
+    if (t.contains('humid')) return AppColors.humidity;
+    if (t.contains('water') || t.contains('tank') || t.contains('pump')) return AppColors.waterTank;
+    if (t.contains('warn') || t.contains('critical') || t.contains('error') || t.contains('attention')) return AppColors.warning;
+    if (t.contains('good') || t.contains('optimal') || t.contains('normal') || t.contains('healthy')) return AppColors.primary;
+    return AppColors.primary;
   }
 
   Widget _buildTypingIndicator() {
