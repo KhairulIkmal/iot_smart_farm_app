@@ -6,6 +6,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
 
+import '../../services/live_sensor_service.dart';
+
 import '../../core/theme.dart';
 import '../../services/notifications/notification_service.dart';
 import '../../services/selected_crop_service.dart';
@@ -77,7 +79,27 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   double _phMax = 7.5;
 
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
-  StreamSubscription<DatabaseEvent>? _pumpStatusSubscription;
+  StreamSubscription<LiveSensorData>? _sensorDataSubscription;
+  StreamSubscription<DatabaseEvent>? _commandsSubscription;
+
+  // Live state fed by subscriptions
+  bool _isConnected = false;
+  int _waterLevel = 0;
+  int _currentSoil = 0;
+  double _currentPh = 7.0;
+  String _lastPumpOn = 'Never';
+
+  // Optimistic command tracking — prevents hardware listener from reverting
+  // the UI before ESP32 catches up
+  bool _commandPending = false;
+  bool _expectedPumpState = false;
+  Timer? _commandTimeoutTimer;
+
+  // Header state — kept as subscriptions to avoid recreating Firestore listeners on every rebuild
+  int _unreadCount = 0;
+  String _cropDisplayName = '';
+  StreamSubscription<int>? _unreadCountSubscription;
+  StreamSubscription<DocumentSnapshot>? _cropNameSubscription;
 
   @override
   void initState() {
@@ -89,6 +111,11 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     );
     _tabController.addListener(_onTabChanged);
 
+    // Unread notification count — single subscription, never recreated on rebuild
+    _unreadCountSubscription = NotificationService().getUnreadCountStream()?.listen((count) {
+      if (mounted) setState(() => _unreadCount = count);
+    });
+
     // Listen to crop selection changes from dashboard
     _cropSelectionSubscription = _selectedCropService.selectedCropStream.listen((cropData) {
       if (cropData != null) {
@@ -98,11 +125,14 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         });
         _loadIrrigationRules();
         _loadPumpStatus();
+        _subscribeToCropName(cropData.cropId);
       } else {
         setState(() {
           _selectedCropId = null;
           _selectedDeviceId = null;
+          _cropDisplayName = '';
         });
+        _cropNameSubscription?.cancel();
       }
     });
 
@@ -115,6 +145,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       });
       _loadIrrigationRules();
       _loadPumpStatus();
+      _subscribeToCropName(currentSelection.cropId);
     }
   }
 
@@ -124,13 +155,34 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     // Auto mode is set when user clicks "Apply to Auto-Irrigation" button
   }
 
+  /// Subscribe to the selected crop document for display name in header.
+  /// Single subscription — not recreated on every rebuild.
+  void _subscribeToCropName(String cropId) {
+    _cropNameSubscription?.cancel();
+    _cropNameSubscription = _firestore
+        .collection('crops')
+        .doc(cropId)
+        .snapshots()
+        .listen((doc) {
+      if (!mounted || !doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>;
+      final cropType = data['crop_type'] ?? 'Unknown';
+      final fieldName = data['field_name'] ?? 'Field A';
+      setState(() => _cropDisplayName = '$cropType - $fieldName');
+    });
+  }
+
   @override
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _audioPlayer.dispose();
     _cropSelectionSubscription?.cancel();
-    _pumpStatusSubscription?.cancel();
+    _sensorDataSubscription?.cancel();
+    _commandsSubscription?.cancel();
+    _commandTimeoutTimer?.cancel();
+    _unreadCountSubscription?.cancel();
+    _cropNameSubscription?.cancel();
     super.dispose();
   }
 
@@ -178,23 +230,68 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     }
   }
 
-  /// Load pump status from RTDB commands
+  /// Start sensor + command listeners
   void _loadPumpStatus() {
     if (_selectedDeviceId == null) return;
 
-    // Cancel existing subscription to prevent memory leaks and race conditions
-    _pumpStatusSubscription?.cancel();
+    _sensorDataSubscription?.cancel();
+    _commandsSubscription?.cancel();
 
-    // IMPORTANT: Read actual pump state from ESP32, not from commands!
-    // Reading from sensors/live/pumpOn ensures button reflects reality
-    // Reading from commands/pump only shows last command sent (not actual state)
-    _pumpStatusSubscription = _rtdb.ref('sensors/$_selectedDeviceId/live/pumpOn').onValue.listen((event) {
-      if (event.snapshot.value != null && mounted) {
-        setState(() {
-          _isPumpActive = event.snapshot.value == true;
-        });
+    // Tell shared service which device to watch (no-op if already set)
+    LiveSensorService().setDevice(_selectedDeviceId);
+
+    // Seed from cache immediately
+    final cached = LiveSensorService().currentData;
+    if (cached != null) _applySensorData(cached);
+
+    // Subscribe to shared service — no separate RTDB listener opened here
+    _sensorDataSubscription = LiveSensorService().stream.listen((data) {
+      if (!mounted) return;
+      _applySensorData(data);
+    });
+
+    // Commands path: only for "Last Active" display — kept separate since it's
+    // a different RTDB path not covered by the sensor service
+    _commandsSubscription = _rtdb
+        .ref('commands/$_selectedDeviceId')
+        .onValue
+        .listen((event) {
+      if (!mounted || event.snapshot.value == null) return;
+      final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+      final lastPumpOn = data['lastPumpOn'] as int?;
+      if (lastPumpOn != null) {
+        final date = DateTime.fromMillisecondsSinceEpoch(lastPumpOn);
+        final h = date.hour.toString().padLeft(2, '0');
+        final m = date.minute.toString().padLeft(2, '0');
+        setState(() => _lastPumpOn = '$h:$m');
       }
     });
+  }
+
+  void _applySensorData(LiveSensorData data) {
+    // Sensor fields — always update
+    setState(() {
+      _isConnected = data.isOnline;
+      _waterLevel = data.waterLevel;
+      _currentSoil = data.soil;
+      _currentPh = data.ph;
+    });
+
+    // Pump state — respect command pending to preserve optimistic UI
+    if (_commandPending) {
+      if (data.pumpOn == _expectedPumpState) {
+        _commandTimeoutTimer?.cancel();
+        setState(() {
+          _commandPending = false;
+          _isPumpActive = data.pumpOn;
+        });
+      }
+      // else: hardware hasn't caught up yet — don't override optimistic state
+    } else {
+      if (_isPumpActive != data.pumpOn) {
+        setState(() => _isPumpActive = data.pumpOn);
+      }
+    }
   }
 
   @override
@@ -229,8 +326,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   /// HEADER
   /// ------------------------------------------------
   Widget _buildHeader() {
-    final user = _auth.currentUser;
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
@@ -247,101 +342,69 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                   color: Colors.white,
                 ),
               ),
-              StreamBuilder<int>(
-                stream: NotificationService().getUnreadCountStream(),
-                builder: (context, snapshot) {
-                  final unreadCount = snapshot.data ?? 0;
-
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationsScreen(),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceDark,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderDark),
-                      ),
-                      child: Stack(
-                        children: [
-                          const Icon(
-                            Icons.notifications_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                          if (unreadCount > 0)
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.error,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsScreen(),
                     ),
                   );
                 },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceDark,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderDark),
+                  ),
+                  child: Stack(
+                    children: [
+                      const Icon(
+                        Icons.notifications_outlined,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      if (_unreadCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Display selected field (synced from dashboard)
-          if (_selectedDeviceId != null)
-            StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('crops')
-                  .where('farmer_id', isEqualTo: user?.uid)
-                  .where('status', isEqualTo: 'active')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                final crops = snapshot.data?.docs ?? [];
-
-                if (_selectedCropId != null && crops.any((c) => c.id == _selectedCropId)) {
-                  final selectedCrop = crops.firstWhere((c) => c.id == _selectedCropId);
-                  final data = selectedCrop.data() as Map<String, dynamic>;
-                  final cropType = data['crop_type'] ?? 'Unknown';
-                  final fieldName = data['field_name'] ?? 'Field A';
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CONTROLLING',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.5),
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$cropType - $fieldName',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                return const SizedBox.shrink();
-              },
+          if (_selectedDeviceId != null && _cropDisplayName.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'CONTROLLING',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withOpacity(0.5),
+                letterSpacing: 1,
+              ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              _cropDisplayName,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -420,37 +483,9 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       return _buildNoDeviceCard();
     }
 
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        bool isConnected = false;
-        int waterLevel = 0;
+    final isConnected = _isConnected;
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-
-            // Check if device is online (lastSeen within 5 minutes)
-            final lastSeen = data['lastSeen'] as int?;
-            if (lastSeen != null) {
-              final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-                lastSeen,
-              );
-              isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
-            }
-
-            waterLevel = data['waterLevel'] != null
-                ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
-                : 0;
-          }
-        }
-
-        return Container(
+    return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surfaceDark,
@@ -548,8 +583,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             ],
           ),
         );
-      },
-    );
   }
 
   Widget _buildPumpControl() {
@@ -600,21 +633,15 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                       ]
                     : [],
               ),
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
-                      ),
-                    )
-                  : Icon(
-                      Icons.power_settings_new,
-                      size: 48,
-                      color: _isPumpActive
-                          ? AppColors.primary
-                          : Colors.white.withOpacity(0.5),
-                    ),
+              // Always show the icon — state flips immediately on tap
+              // _isLoading only blocks re-tapping, not the visual
+              child: Icon(
+                Icons.power_settings_new,
+                size: 48,
+                color: _isPumpActive
+                    ? AppColors.primary
+                    : Colors.white.withOpacity(0.5),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -648,133 +675,95 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       children: [
         // Last Active (Pump Turn On History)
         Expanded(
-          child: StreamBuilder<DatabaseEvent>(
-            stream: _rtdb.ref('commands/$_selectedDeviceId').onValue.asBroadcastStream(),
-            builder: (context, commandSnapshot) {
-              String lastRunText = 'Never';
-
-              if (commandSnapshot.hasData && commandSnapshot.data!.snapshot.value != null) {
-                final commandData = Map<String, dynamic>.from(commandSnapshot.data!.snapshot.value as Map);
-
-                // Get last pump "on" timestamp from history
-                final lastPumpOn = commandData['lastPumpOn'] as int?;
-
-                if (lastPumpOn != null) {
-                  final lastRunDate = DateTime.fromMillisecondsSinceEpoch(lastPumpOn);
-
-                  // Format the actual time (clock)
-                  final hour = lastRunDate.hour.toString().padLeft(2, '0');
-                  final minute = lastRunDate.minute.toString().padLeft(2, '0');
-                  lastRunText = '$hour:$minute';
-                }
-              }
-
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.borderDark),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Last Active',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.5),
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 8),
+                Row(
                   children: [
-                    Text(
-                      'Last Active',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.5),
-                      ),
+                    Icon(
+                      Icons.schedule,
+                      size: 18,
+                      color: Colors.white.withOpacity(0.7),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 18,
-                          color: Colors.white.withOpacity(0.7),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          lastRunText,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 6),
+                    Text(
+                      _lastPumpOn,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
-              );
-            },
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 12),
         // Tank Level (Live from RTDB)
         Expanded(
-          child: StreamBuilder<DatabaseEvent>(
-            stream: _rtdb.ref('sensors/$_selectedDeviceId/live').onValue.asBroadcastStream(),
-            builder: (context, snapshot) {
-              int waterLevel = 0;
-
-              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-                final data = Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
-
-                // Get water level
-                waterLevel = data['waterLevel'] != null
-                    ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
-                    : 0;
-              }
-
-              final isLow = waterLevel < 30;
-
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isLow
-                        ? AppColors.warning.withOpacity(0.5)
-                        : AppColors.borderDark,
+          child: Builder(builder: (context) {
+            final isLow = _waterLevel < 30;
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDark,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isLow
+                      ? AppColors.warning.withOpacity(0.5)
+                      : AppColors.borderDark,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tank Level',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.5),
+                    ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tank Level',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.5),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.water,
+                        size: 18,
+                        color: isLow ? AppColors.warning : AppColors.primary,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.water,
-                          size: 18,
-                          color: isLow ? AppColors.warning : AppColors.primary,
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_waterLevel%',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isLow ? AppColors.warning : Colors.white,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '$waterLevel%',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: isLow ? AppColors.warning : Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
         ),
       ],
     );
@@ -864,40 +853,11 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       return _buildNoDeviceCard();
     }
 
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        bool isConnected = false;
-        int soil = 0;
-        double ph = 0.0;
+    final isConnected = _isConnected;
+    final soil = _currentSoil;
+    final ph = _currentPh;
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-
-            final lastSeen = data['lastSeen'] as int?;
-            if (lastSeen != null) {
-              final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(
-                lastSeen,
-              );
-              isConnected = DateTime.now().difference(lastSeenDate).inMinutes < 5;
-            }
-
-            soil = data['soil'] != null
-                ? (data['soil'] is int ? data['soil'] : (data['soil'] as num).toInt())
-                : 0;
-            ph = data['ph'] != null
-                ? (data['ph'] is double ? data['ph'] : (data['ph'] as num).toDouble())
-                : 0.0;
-          }
-        }
-
-        return Container(
+    return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surfaceDark,
@@ -1049,25 +1009,12 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             ],
           ),
         );
-      },
-    );
   }
 
   /// Soil Moisture Rule with live current value
   Widget _buildSoilMoistureRule() {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _selectedDeviceId != null
-          ? _rtdb.ref('sensors/$_selectedDeviceId/soil').onValue.asBroadcastStream()
-          : null,
-      builder: (context, snapshot) {
-        int currentSoil = 0;
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          currentSoil = snapshot.data!.snapshot.value is int
-              ? snapshot.data!.snapshot.value as int
-              : (snapshot.data!.snapshot.value as num).toInt();
-        }
-
-        return Container(
+    final currentSoil = _currentSoil;
+    return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surfaceDark,
@@ -1159,25 +1106,13 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             ],
           ),
         );
-      },
-    );
   }
 
   /// pH Level Rule with live current value
   Widget _buildPhLevelRule() {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _selectedDeviceId != null
-          ? _rtdb.ref('sensors/$_selectedDeviceId/ph').onValue.asBroadcastStream()
-          : null,
-      builder: (context, snapshot) {
-        double currentPh = 7.0;
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          currentPh = snapshot.data!.snapshot.value is double
-              ? snapshot.data!.snapshot.value as double
-              : (snapshot.data!.snapshot.value as num).toDouble();
-        }
+    final currentPh = _currentPh;
 
-        return Container(
+    return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.surfaceDark,
@@ -1422,8 +1357,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             ],
           ),
         );
-      },
-    );
   }
 
   Widget _buildSliderRow({
@@ -1640,33 +1573,42 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   Future<void> _togglePump() async {
     if (_selectedDeviceId == null) return;
 
-    setState(() => _isLoading = true);
+    final newPumpState = !_isPumpActive;
+    final newStateStr = newPumpState ? 'on' : 'off';
+
+    // Optimistic update — UI flips immediately, no waiting for ESP32 round-trip
+    // _commandPending blocks the hardware listener from reverting this until ESP32 confirms
+    _commandTimeoutTimer?.cancel();
+    setState(() {
+      _isPumpActive = newPumpState;
+      _isLoading = true;
+      _commandPending = true;
+      _expectedPumpState = newPumpState;
+    });
+
+    // Safety timeout: if ESP32 doesn't confirm within 6s, resume normal tracking
+    _commandTimeoutTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _commandPending = false);
+    });
+
+    _playSound(newPumpState);
 
     try {
-      final newState = _isPumpActive ? 'off' : 'on';
-
-      // Play sound effect (non-blocking)
-      _playSound(newState == 'on');
-
-      // Send command to ESP32 via RTDB
-      // When user manually controls pump, switch to manual mode
-      final commandUpdate = {
-        'pump': newState,
-        'mode': 'manual', // Switch to manual mode when user controls pump
+      final commandUpdate = <String, dynamic>{
+        'pump': newStateStr,
+        'mode': 'manual',
         'timestamp': ServerValue.timestamp,
         'source': 'app',
       };
 
-      // If turning ON, save the timestamp as lastPumpOn for history
-      if (newState == 'on') {
+      if (newPumpState) {
         commandUpdate['lastPumpOn'] = ServerValue.timestamp;
       }
 
       await _rtdb.ref('commands/$_selectedDeviceId').update(commandUpdate);
 
-      // Don't manually update _isPumpActive here
-      // Let the RTDB listener in _loadPumpStatus() handle it
-      // This prevents race conditions and blinking
+      // RTDB listener on sensors/.../live/pumpOn will confirm when ESP32 responds.
+      // If ESP32 disagrees (e.g. safety cutoff), the listener will correct the state.
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1674,14 +1616,14 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             content: Row(
               children: [
                 Icon(
-                  newState == 'on' ? Icons.check_circle : Icons.stop_circle,
+                  newPumpState ? Icons.check_circle : Icons.stop_circle,
                   color: Colors.white,
                 ),
                 const SizedBox(width: 12),
-                Text(newState == 'on' ? 'Pump command sent' : 'Pump stop command sent'),
+                Text(newPumpState ? 'Pump activated' : 'Pump stopped'),
               ],
             ),
-            backgroundColor: newState == 'on'
+            backgroundColor: newPumpState
                 ? AppColors.primary
                 : AppColors.surfaceDark,
             behavior: SnackBarBehavior.floating,
@@ -1692,7 +1634,9 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         );
       }
     } catch (e) {
+      // Revert optimistic update — command failed to reach Firebase
       if (mounted) {
+        setState(() => _isPumpActive = !newPumpState);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Failed to control pump'),
@@ -1705,7 +1649,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

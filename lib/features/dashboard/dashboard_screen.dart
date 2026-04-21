@@ -7,6 +7,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme.dart';
+import '../../services/live_sensor_service.dart';
 import '../../services/weather_service.dart';
 import '../../services/notifications/notification_service.dart';
 import '../../services/selected_crop_service.dart';
@@ -46,7 +47,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final WeatherService _weatherService = WeatherService();
   final SelectedCropService _selectedCropService = SelectedCropService();
@@ -64,6 +64,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Stream subscription for crop selection
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
 
+  // Crops list and unread count — subscriptions, never recreated on rebuild
+  List<QueryDocumentSnapshot> _crops = [];
+  int _unreadCount = 0;
+  StreamSubscription<QuerySnapshot>? _cropsSubscription;
+  StreamSubscription<int>? _unreadCountSubscription;
+
+  // Live sensor state — fed by LiveSensorService (one shared RTDB listener for the whole app)
+  StreamSubscription<LiveSensorData>? _sensorSubscription;
+  int _soil = 0;
+  double _ph = 0.0;
+  int _temp = 0;
+  int _humidity = 0;
+  int _waterLevel = 0;
+  Map<String, String> _sensorHealth = {};
+  bool _isOnline = false;
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +94,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     _loadWeather();
 
+    // Start shared RTDB listener if device already selected
+    if (_selectedDeviceId != null) _startSensorListener();
+
+    // Unread count — single subscription, not recreated on every rebuild
+    _unreadCountSubscription = NotificationService().getUnreadCountStream()?.listen((count) {
+      if (mounted) setState(() => _unreadCount = count);
+    });
+
+    // Crops list — single subscription drives the field selector and auto-selection logic
+    final user = _auth.currentUser;
+    if (user != null) {
+      _cropsSubscription = _firestore
+          .collection('crops')
+          .where('farmer_id', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'active')
+          .snapshots()
+          .listen((snapshot) {
+        if (!mounted) return;
+        final crops = snapshot.docs;
+        setState(() => _crops = crops);
+
+        // Reset selection if selected crop no longer exists
+        if (_selectedCropId != null && !crops.any((c) => c.id == _selectedCropId)) {
+          setState(() {
+            _selectedCropId = null;
+            _selectedDeviceId = null;
+            _selectedCropType = null;
+          });
+          _selectedCropService.clearSelectedCrop();
+        }
+
+        // Auto-select first crop if none selected
+        if (crops.isNotEmpty && _selectedCropId == null) {
+          final firstCrop = crops.first;
+          final data = firstCrop.data() as Map<String, dynamic>;
+          setState(() {
+            _selectedCropId = firstCrop.id;
+            _selectedDeviceId = data['device_id'];
+            _selectedCropType = data['crop_type'];
+          });
+          _selectedCropService.updateSelectedCrop(
+            cropId: firstCrop.id,
+            deviceId: data['device_id'],
+            cropType: data['crop_type'],
+          );
+          _startSensorListener();
+        }
+      });
+    }
+
     // Listen to selected crop changes from other screens
     _cropSelectionSubscription = _selectedCropService.selectedCropStream.listen((selectedCrop) {
       if (mounted && selectedCrop != null) {
@@ -86,13 +152,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _selectedDeviceId = selectedCrop.deviceId;
           _selectedCropType = selectedCrop.cropType;
         });
+        _startSensorListener();
       }
+    });
+  }
+
+  void _startSensorListener() {
+    _sensorSubscription?.cancel();
+    if (_selectedDeviceId == null) return;
+
+    // Tell the shared service which device to watch.
+    // If sensors/irrigation already called this for the same device, it's a no-op.
+    LiveSensorService().setDevice(_selectedDeviceId);
+
+    // Seed from cached value so display is instant on tab switch
+    final cached = LiveSensorService().currentData;
+    if (cached != null) _applySensorData(cached);
+
+    _sensorSubscription = LiveSensorService().stream.listen((data) {
+      if (!mounted) return;
+      _applySensorData(data);
+    });
+  }
+
+  void _applySensorData(LiveSensorData data) {
+    setState(() {
+      _soil = data.soil;
+      _ph = data.ph;
+      _temp = data.temp;
+      _humidity = data.humidity;
+      _waterLevel = data.waterLevel;
+      _sensorHealth = {
+        'soil': data.soilHealth,
+        'ph': data.phHealth,
+        'waterLevel': data.waterHealth,
+      };
+      _isOnline = data.isOnline;
     });
   }
 
   @override
   void dispose() {
     _cropSelectionSubscription?.cancel();
+    _sensorSubscription?.cancel();
+    _cropsSubscription?.cancel();
+    _unreadCountSubscription?.cancel();
     super.dispose();
   }
 
@@ -164,173 +268,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// HEADER WITH FIELD SELECTOR
   /// ------------------------------------------------
   Widget _buildHeader() {
-    final user = _auth.currentUser;
+    final selectedCrop = _selectedCropId != null
+        ? _crops.where((c) => c.id == _selectedCropId).firstOrNull
+        : null;
+    final selectedData = selectedCrop?.data() as Map<String, dynamic>?;
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('crops')
-          .where('farmer_id', isEqualTo: user?.uid)
-          .where('status', isEqualTo: 'active')
-          .snapshots(),
-      builder: (context, snapshot) {
-        final crops = snapshot.data?.docs ?? [];
-
-        // Reset selection if selected crop no longer exists
-        if (_selectedCropId != null && !crops.any((c) => c.id == _selectedCropId)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            setState(() {
-              _selectedCropId = null;
-              _selectedDeviceId = null;
-              _selectedCropType = null;
-            });
-            // Broadcast the reset to other screens
-            _selectedCropService.clearSelectedCrop();
-          });
-        }
-
-        // Auto-select first crop if none selected
-        if (crops.isNotEmpty && _selectedCropId == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final firstCrop = crops.first;
-            final data = firstCrop.data() as Map<String, dynamic>;
-            setState(() {
-              _selectedCropId = firstCrop.id;
-              _selectedDeviceId = data['device_id'];
-              _selectedCropType = data['crop_type'];
-            });
-            // Broadcast the selection to other screens
-            _selectedCropService.updateSelectedCrop(
-              cropId: firstCrop.id,
-              deviceId: data['device_id'],
-              cropType: data['crop_type'],
-            );
-          });
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ACTIVE FIELD',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.5),
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ACTIVE FIELD',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withOpacity(0.5),
+                      letterSpacing: 1,
+                    ),
                   ),
-                ),
-                // Online Status Badge (from RTDB lastSeen)
-                _buildOnlineStatusBadge(),
-              ],
-            ),
-            const SizedBox(height: 4),
-            // Modern Crop Selector Card
-            GestureDetector(
-              onTap: () => _showCropSelectorBottomSheet(crops),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.primary,
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.15),
-                      blurRadius: 8,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 0),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    // Agriculture Icon
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.agriculture,
-                        color: AppColors.primary,
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Crop Info
-                    Expanded(
-                      child: _selectedCropId != null && crops.any((c) => c.id == _selectedCropId)
-                          ? Builder(
-                              builder: (context) {
-                                final selectedCrop = crops.firstWhere(
-                                  (c) => c.id == _selectedCropId,
-                                );
-                                final data = selectedCrop.data() as Map<String, dynamic>;
-                                final cropType = data['crop_type'] ?? 'Unknown';
-                                final fieldName = data['field_name'] ?? 'Field A';
-                                final deviceId = data['device_id'] ?? '';
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '$cropType - $fieldName',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      deviceId,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white.withOpacity(0.5),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                );
-                              },
-                            )
-                          : const Text(
-                              'Select Field',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
-                    // Dropdown Arrow
-                    const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: AppColors.primary,
-                      size: 28,
-                    ),
-                  ],
-                ),
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
+            _buildOnlineStatusBadge(),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: () => _showCropSelectorBottomSheet(_crops),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.15),
+                  blurRadius: 8,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 0),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.agriculture, color: AppColors.primary, size: 32),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: selectedData != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${selectedData['crop_type'] ?? 'Unknown'} - ${selectedData['field_name'] ?? 'Field A'}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              selectedData['device_id'] ?? '',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.5),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        )
+                      : const Text(
+                          'Select Field',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+                const Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 28),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -503,29 +540,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Online status based on lastSeen timestamp from RTDB
+  /// Online status based on lastSeen timestamp from RTDB (driven by _rtdbSubscription)
   Widget _buildOnlineStatusBadge() {
-    if (_selectedDeviceId == null) {
-      return _buildStatusBadge(false);
-    }
-
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId/live/lastSeen').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        bool isOnline = false;
-
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final lastSeen = snapshot.data!.snapshot.value as int;
-          // Firebase server timestamp is already in milliseconds, don't multiply
-          final lastSeenDate = DateTime.fromMillisecondsSinceEpoch(lastSeen);
-          final diff = DateTime.now().difference(lastSeenDate);
-          // Consider online if last seen within 10 seconds (2s heartbeat + 8s buffer)
-          isOnline = diff.inSeconds < 10;
-        }
-
-        return _buildStatusBadge(isOnline);
-      },
-    );
+    return _buildStatusBadge(_selectedDeviceId != null && _isOnline);
   }
 
   Widget _buildStatusBadge(bool isOnline) {
@@ -622,53 +639,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        // Notification Button with dynamic badge
-        StreamBuilder<int>(
-          stream: NotificationService().getUnreadCountStream(),
-          builder: (context, snapshot) {
-            final unreadCount = snapshot.data ?? 0;
-
-            return GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const NotificationsScreen(),
-                  ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderDark),
-                ),
-                child: Stack(
-                  children: [
-                    const Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.error,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+        // Notification Button with dynamic badge (uses _unreadCount state, not StreamBuilder)
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationsScreen(),
               ),
             );
           },
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: Stack(
+              children: [
+                const Icon(
+                  Icons.notifications_outlined,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                if (_unreadCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppColors.error,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -1129,175 +1139,133 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _buildNoDeviceCard();
     }
 
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        // Default values
-        int soil = 0;
-        double ph = 0.0;
-        int temp = 0;
-        int humidity = 0;
-        Map<String, String> sensorHealth = {};
-
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-
-            soil = data['soil'] != null
-                ? (data['soil'] is int ? data['soil'] : (data['soil'] as num).toInt())
-                : 0;
-            ph = data['ph'] != null
-                ? (data['ph'] is double ? data['ph'] : (data['ph'] as num).toDouble())
-                : 0.0;
-            temp = data['temp'] != null
-                ? (data['temp'] is int ? data['temp'] : (data['temp'] as num).toInt())
-                : 0;
-            humidity = data['humidity'] != null
-                ? (data['humidity'] is int ? data['humidity'] : (data['humidity'] as num).toInt())
-                : 0;
-          }
-
-          // Parse sensorHealth from sensorHealth node
-          if (rootData['sensorHealth'] != null) {
-            final healthData = Map<String, dynamic>.from(rootData['sensorHealth']);
-            sensorHealth = healthData.map((k, v) => MapEntry(k, v.toString()));
-          }
-        }
-
-        return Column(
+    return Column(
+      children: [
+        // Row 1: Soil Moisture & pH Level
+        Row(
           children: [
-            // Row 1: Soil Moisture & pH Level
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SensorGraphScreen(
-                            deviceId: _selectedDeviceId!,
-                            sensorType: 'soil',
-                          ),
-                        ),
-                      );
-                    },
-                    child: _buildSensorCard(
-                      icon: Icons.water_drop,
-                      iconColor: AppColors.soilMoisture,
-                      iconBgColor: AppColors.soilMoistureBackground,
-                      label: 'SOIL MOISTURE',
-                      value: '$soil',
-                      unit: '%',
-                      status: _getSoilStatus(soil),
-                      statusColor: _getSoilStatusColor(soil),
-                      progressColor: AppColors.soilMoisture,
-                      progressValue: soil / 100,
-                      sensorHealth: sensorHealth['soil'],
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SensorGraphScreen(
+                        deviceId: _selectedDeviceId!,
+                        sensorType: 'soil',
+                      ),
                     ),
-                  ),
+                  );
+                },
+                child: _buildSensorCard(
+                  icon: Icons.water_drop,
+                  iconColor: AppColors.soilMoisture,
+                  iconBgColor: AppColors.soilMoistureBackground,
+                  label: 'SOIL MOISTURE',
+                  value: '$_soil',
+                  unit: '%',
+                  status: _getSoilStatus(_soil),
+                  statusColor: _getSoilStatusColor(_soil),
+                  progressColor: AppColors.soilMoisture,
+                  progressValue: _soil / 100,
+                  sensorHealth: _sensorHealth['soil'],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SensorGraphScreen(
-                            deviceId: _selectedDeviceId!,
-                            sensorType: 'ph',
-                          ),
-                        ),
-                      );
-                    },
-                    child: _buildSensorCard(
-                      icon: Icons.science,
-                      iconColor: AppColors.phLevel,
-                      iconBgColor: AppColors.phLevelBackground,
-                      label: 'PH LEVEL',
-                      value: ph.toStringAsFixed(1),
-                      unit: '',
-                      status: _getPhStatus(ph),
-                      statusColor: _getPhStatusColor(ph),
-                      progressColor: AppColors.phLevel,
-                      progressValue: ph / 14,
-                      sensorHealth: sensorHealth['ph'],
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 12),
-            // Row 2: Temperature & Humidity
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SensorGraphScreen(
-                            deviceId: _selectedDeviceId!,
-                            sensorType: 'temp',
-                          ),
-                        ),
-                      );
-                    },
-                    child: _buildSensorCard(
-                      icon: Icons.thermostat,
-                      iconColor: AppColors.temperature,
-                      iconBgColor: AppColors.temperatureBackground,
-                      label: 'TEMPERATURE',
-                      value: '$temp',
-                      unit: '°C',
-                      status: _getTempStatus(temp),
-                      statusColor: _getTempStatusColor(temp),
-                      progressColor: AppColors.temperature,
-                      progressValue: temp / 50,
-                      isWarning: temp > 30,
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SensorGraphScreen(
+                        deviceId: _selectedDeviceId!,
+                        sensorType: 'ph',
+                      ),
                     ),
-                  ),
+                  );
+                },
+                child: _buildSensorCard(
+                  icon: Icons.science,
+                  iconColor: AppColors.phLevel,
+                  iconBgColor: AppColors.phLevelBackground,
+                  label: 'PH LEVEL',
+                  value: _ph.toStringAsFixed(1),
+                  unit: '',
+                  status: _getPhStatus(_ph),
+                  statusColor: _getPhStatusColor(_ph),
+                  progressColor: AppColors.phLevel,
+                  progressValue: _ph / 14,
+                  sensorHealth: _sensorHealth['ph'],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SensorGraphScreen(
-                            deviceId: _selectedDeviceId!,
-                            sensorType: 'humidity',
-                          ),
-                        ),
-                      );
-                    },
-                    child: _buildSensorCard(
-                      icon: Icons.cloud,
-                      iconColor: AppColors.humidity,
-                      iconBgColor: AppColors.humidityBackground,
-                      label: 'HUMIDITY',
-                      value: '$humidity',
-                      unit: '%',
-                      status: _getHumidityStatus(humidity),
-                      statusColor: _getHumidityStatusColor(humidity),
-                      progressColor: AppColors.humidity,
-                      progressValue: humidity / 100,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 12),
+        // Row 2: Temperature & Humidity
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SensorGraphScreen(
+                        deviceId: _selectedDeviceId!,
+                        sensorType: 'temp',
+                      ),
+                    ),
+                  );
+                },
+                child: _buildSensorCard(
+                  icon: Icons.thermostat,
+                  iconColor: AppColors.temperature,
+                  iconBgColor: AppColors.temperatureBackground,
+                  label: 'TEMPERATURE',
+                  value: '$_temp',
+                  unit: '°C',
+                  status: _getTempStatus(_temp),
+                  statusColor: _getTempStatusColor(_temp),
+                  progressColor: AppColors.temperature,
+                  progressValue: _temp / 50,
+                  isWarning: _temp > 30,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SensorGraphScreen(
+                        deviceId: _selectedDeviceId!,
+                        sensorType: 'humidity',
+                      ),
+                    ),
+                  );
+                },
+                child: _buildSensorCard(
+                  icon: Icons.cloud,
+                  iconColor: AppColors.humidity,
+                  iconBgColor: AppColors.humidityBackground,
+                  label: 'HUMIDITY',
+                  value: '$_humidity',
+                  unit: '%',
+                  status: _getHumidityStatus(_humidity),
+                  statusColor: _getHumidityStatusColor(_humidity),
+                  progressColor: AppColors.humidity,
+                  progressValue: _humidity / 100,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1477,36 +1445,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildWaterTankCard() {
     if (_selectedDeviceId == null) return const SizedBox.shrink();
 
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        int waterLevel = 0;
-        String? healthStatus;
+    final waterLevel = _waterLevel;
+    final hasError = _sensorHealth['waterLevel'] == 'error';
+    final isCritical = waterLevel < 20 && !hasError;
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read waterLevel from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-            waterLevel = data['waterLevel'] != null
-                ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
-                : 0;
-          }
-
-          // Read health status from sensorHealth node
-          if (rootData['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
-            healthStatus = health['waterLevel']?.toString();
-          }
-        }
-
-        final hasError = healthStatus == 'error';
-        final isCritical = waterLevel < 20 && !hasError;
-
-        return GestureDetector(
+    return GestureDetector(
           onTap: () {
             Navigator.push(
               context,
@@ -1612,8 +1555,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         );
-      },
-    );
   }
 
   /// ------------------------------------------------

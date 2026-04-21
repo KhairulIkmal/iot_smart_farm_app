@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'dart:convert';
 
 import '../../../core/theme.dart';
@@ -37,10 +38,76 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   bool _isSaving = false;
   bool _isFetchingAddress = false;
 
+  // Search
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  Timer? _debounceTimer;
+
   @override
   void initState() {
     super.initState();
     _loadSavedLocation();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Forward geocoding — search place name → coordinates
+  Future<void> _searchLocation(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() => _searchResults = []);
+      return;
+    }
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (!mounted) return;
+      setState(() => _isSearching = true);
+
+      try {
+        const apiKey = 'ca6f5f0810167431d32955c435826e53';
+        final url = Uri.parse(
+          'https://api.openweathermap.org/geo/1.0/direct?q=${Uri.encodeComponent(query)}&limit=5&appid=$apiKey',
+        );
+
+        final response = await http.get(url);
+
+        if (response.statusCode == 200 && mounted) {
+          final List<dynamic> data = json.decode(response.body);
+          setState(() {
+            _searchResults = data.cast<Map<String, dynamic>>();
+          });
+        }
+      } catch (e) {
+        debugPrint('Search error: $e');
+      } finally {
+        if (mounted) setState(() => _isSearching = false);
+      }
+    });
+  }
+
+  /// Move map to selected search result
+  void _selectSearchResult(Map<String, dynamic> result) {
+    final lat = (result['lat'] as num).toDouble();
+    final lon = (result['lon'] as num).toDouble();
+    final newLocation = LatLng(lat, lon);
+
+    setState(() {
+      _selectedLocation = newLocation;
+      _searchResults = [];
+      _searchController.clear();
+    });
+
+    _searchFocusNode.unfocus();
+    _mapController.move(newLocation, 14.0);
+    _getAddressFromCoordinates(newLocation);
   }
 
   /// Load existing location from Firestore
@@ -316,31 +383,161 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
               ),
               const SizedBox(height: 16),
               // Search bar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D3D2F),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.search,
-                      color: Colors.white.withOpacity(0.5),
-                      size: 22,
+              Column(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2D3D2F),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Search farm address or coordinates...',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 14,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 14),
+                        _isSearching
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary,
+                                  ),
+                                ),
+                              )
+                            : Icon(
+                                Icons.search,
+                                color: Colors.white.withOpacity(0.5),
+                                size: 22,
+                              ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search farm address or city...',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                              ),
+                            ),
+                            onChanged: _searchLocation,
+                            textInputAction: TextInputAction.search,
+                            onSubmitted: _searchLocation,
+                          ),
+                        ),
+                        if (_searchController.text.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _searchResults = []);
+                              _searchFocusNode.unfocus();
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white.withOpacity(0.5),
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  // Search results dropdown
+                  if (_searchResults.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E2D20),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Column(
+                          children: _searchResults.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final result = entry.value;
+                            final name = result['name'] ?? '';
+                            final state = result['state'] ?? '';
+                            final country = result['country'] ?? '';
+
+                            final subtitle = [state, country]
+                                .where((s) => s.isNotEmpty)
+                                .join(', ');
+
+                            return Column(
+                              children: [
+                                if (index != 0)
+                                  Divider(
+                                    height: 1,
+                                    color: Colors.white.withOpacity(0.08),
+                                  ),
+                                GestureDetector(
+                                  onTap: () => _selectSearchResult(result),
+                                  child: Container(
+                                    color: Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.location_on_outlined,
+                                          color: AppColors.primary,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                name,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              if (subtitle.isNotEmpty)
+                                                Text(
+                                                  subtitle,
+                                                  style: TextStyle(
+                                                    color: Colors.white
+                                                        .withOpacity(0.5),
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ],
           ),
@@ -382,6 +579,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                   point: _selectedLocation,
                   width: 80,
                   height: 100,
+                  rotate: true,
                   child: _buildCustomMarker(),
                 ),
               ],

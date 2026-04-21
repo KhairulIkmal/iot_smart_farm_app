@@ -26,6 +26,7 @@ class NotificationModel {
   final String message;
   final DateTime timestamp;
   final bool isRead;
+  final bool isArchived;
   final bool actionTaken;
   final Map<String, dynamic>? data; // Additional context
 
@@ -38,6 +39,7 @@ class NotificationModel {
     required this.message,
     required this.timestamp,
     this.isRead = false,
+    this.isArchived = false,
     this.actionTaken = false,
     this.data,
   });
@@ -60,6 +62,7 @@ class NotificationModel {
       message: data['message'] ?? '',
       timestamp: (data['timestamp'] as Timestamp).toDate(),
       isRead: data['isRead'] ?? false,
+      isArchived: data['isArchived'] ?? false,
       actionTaken: data['actionTaken'] ?? false,
       data: data['data'] as Map<String, dynamic>?,
     );
@@ -75,6 +78,7 @@ class NotificationModel {
       'message': message,
       'timestamp': Timestamp.fromDate(timestamp),
       'isRead': isRead,
+      'isArchived': isArchived,
       'actionTaken': actionTaken,
       if (data != null) 'data': data,
     };
@@ -90,6 +94,7 @@ class NotificationModel {
     String? message,
     DateTime? timestamp,
     bool? isRead,
+    bool? isArchived,
     bool? actionTaken,
     Map<String, dynamic>? data,
   }) {
@@ -102,6 +107,7 @@ class NotificationModel {
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
       isRead: isRead ?? this.isRead,
+      isArchived: isArchived ?? this.isArchived,
       actionTaken: actionTaken ?? this.actionTaken,
       data: data ?? this.data,
     );

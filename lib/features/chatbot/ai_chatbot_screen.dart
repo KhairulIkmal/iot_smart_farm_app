@@ -295,6 +295,73 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
   }
 
+  List<String> get _suggestedQuestions => [
+        'Is my soil moisture good for $_selectedCrop?',
+        'What pH level does $_selectedCrop need?',
+        'When is the best time to water $_selectedCrop?',
+        'How often should I irrigate $_selectedCrop?',
+      ];
+
+  Widget _buildSuggestedQuestions(StateSetter setSheetState) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        border: Border(top: BorderSide(color: AppColors.borderDark)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(
+              'Suggested',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _suggestedQuestions.map((q) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      _sendMessage(q);
+                      setSheetState(() {});
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        q,
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChatBottomSheet() {
     return StatefulBuilder(
       builder: (context, setSheetState) {
@@ -381,6 +448,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       },
                     ),
                   ),
+                  // Suggested questions (hidden once user starts chatting)
+                  if (_chatMessages.length <= 1)
+                    _buildSuggestedQuestions(setSheetState),
                   // Input
                   Container(
                     padding: EdgeInsets.only(
@@ -720,7 +790,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 _buildOptimalSettingsCard(),
                 const SizedBox(height: 16),
                 _buildTipCard(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                _buildAskAiBanner(),
+                const SizedBox(height: 16),
                 _buildApplyButton(),
               ],
             ],
@@ -758,16 +830,26 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         GestureDetector(
           onTap: _openChatPanel,
           child: Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: AppColors.primary.withOpacity(0.4)),
             ),
-            child: const Icon(
-              Icons.smart_toy_outlined,
-              color: AppColors.primary,
-              size: 22,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 18),
+                SizedBox(width: 6),
+                Text(
+                  'Ask AI',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1046,6 +1128,57 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAskAiBanner() {
+    return GestureDetector(
+      onTap: _openChatPanel,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Have questions about your crop?',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Chat with your AI farm advisor',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+          ],
+        ),
       ),
     );
   }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'dart:async';
 
 import '../../core/theme.dart';
+import '../../services/live_sensor_service.dart';
 import '../../services/selected_crop_service.dart';
 import '../analytics/sensor_graph_screen.dart';
 
@@ -41,7 +41,6 @@ class SensorsScreen extends StatefulWidget {
 
 class _SensorsScreenState extends State<SensorsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseDatabase _rtdb = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final SelectedCropService _selectedCropService = SelectedCropService();
 
@@ -50,14 +49,28 @@ class _SensorsScreenState extends State<SensorsScreen> {
   bool _isRefreshing = false;
   DateTime _lastUpdated = DateTime.now();
 
+  // Live sensor values (updated by single stream subscription)
+  int _soil = 0;
+  double _ph = 0.0;
+  int _temp = 0;
+  int _humidity = 0;
+  int _waterLevel = 0;
+  String _soilHealth = 'ok';
+  String _phHealth = 'ok';
+  String _waterHealth = 'ok';
+
   // Historical data for charts (simulated time-series)
   List<double> _soilHistory = [];
   List<double> _tempHistory = [];
   List<double> _humidityHistory = [];
   List<double> _waterHistory = [];
 
-  StreamSubscription<DatabaseEvent>? _sensorSubscription;
+  StreamSubscription<LiveSensorData>? _sensorSubscription;
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
+  StreamSubscription<DocumentSnapshot>? _cropNameSubscription;
+
+  // Header display name — subscription-based, not rebuilt on every RTDB event
+  String _cropDisplayName = '';
 
   @override
   void initState() {
@@ -70,11 +83,14 @@ class _SensorsScreenState extends State<SensorsScreen> {
           _selectedDeviceId = cropData.deviceId;
         });
         _loadHistoricalData();
+        _subscribeToCropName(cropData.cropId);
       } else {
         setState(() {
           _selectedCropId = null;
           _selectedDeviceId = null;
+          _cropDisplayName = '';
         });
+        _cropNameSubscription?.cancel();
       }
     });
 
@@ -86,6 +102,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
         _selectedDeviceId = currentSelection.deviceId;
       });
       _loadHistoricalData();
+      _subscribeToCropName(currentSelection.cropId);
     }
   }
 
@@ -93,7 +110,24 @@ class _SensorsScreenState extends State<SensorsScreen> {
   void dispose() {
     _sensorSubscription?.cancel();
     _cropSelectionSubscription?.cancel();
+    _cropNameSubscription?.cancel();
     super.dispose();
+  }
+
+  void _subscribeToCropName(String cropId) {
+    _cropNameSubscription?.cancel();
+    _cropNameSubscription = _firestore
+        .collection('crops')
+        .doc(cropId)
+        .snapshots()
+        .listen((doc) {
+      if (!mounted || !doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>;
+      setState(() {
+        _cropDisplayName =
+            '${data['crop_type'] ?? 'Unknown'} - ${data['field_name'] ?? 'Field A'}';
+      });
+    });
   }
 
   /// Load historical data from RTDB
@@ -103,42 +137,40 @@ class _SensorsScreenState extends State<SensorsScreen> {
   void _loadHistoricalData() {
     if (_selectedDeviceId == null) return;
 
+    LiveSensorService().setDevice(_selectedDeviceId);
+
     _sensorSubscription?.cancel();
-    _sensorSubscription = _rtdb
-        .ref('sensors/$_selectedDeviceId')
-        .onValue
-        .listen((event) {
-          if (event.snapshot.value != null) {
-            final rootData = Map<String, dynamic>.from(event.snapshot.value as Map);
 
-            // Read from live node
-            final data = rootData['live'] != null
-                ? Map<String, dynamic>.from(rootData['live'])
-                : <String, dynamic>{};
+    // Seed from cache immediately — no blank screen while waiting for first event
+    final cached = LiveSensorService().currentData;
+    if (cached != null) _applySensorData(cached);
 
-            final soil = data['soil'] != null
-                ? (data['soil'] is int ? (data['soil'] as int).toDouble() : (data['soil'] as num).toDouble())
-                : 0.0;
-            final temp = data['temp'] != null
-                ? (data['temp'] is int ? (data['temp'] as int).toDouble() : (data['temp'] as num).toDouble())
-                : 0.0;
-            final humidity = data['humidity'] != null
-                ? (data['humidity'] is int ? (data['humidity'] as int).toDouble() : (data['humidity'] as num).toDouble())
-                : 0.0;
-            final water = data['waterLevel'] != null
-                ? (data['waterLevel'] is int ? (data['waterLevel'] as int).toDouble() : (data['waterLevel'] as num).toDouble())
-                : 0.0;
+    _sensorSubscription = LiveSensorService().stream.listen((data) {
+      if (!mounted) return;
+      _applySensorData(data);
+    });
+  }
 
-            // Generate simulated historical data (±10% variation)
-            setState(() {
-              _soilHistory = _generateHistory(soil, 7);
-              _tempHistory = _generateHistory(temp, 7);
-              _humidityHistory = _generateHistory(humidity, 7);
-              _waterHistory = _generateWaterHistory(water, 7);
-              _lastUpdated = DateTime.now();
-            });
-          }
-        });
+  void _applySensorData(LiveSensorData data) {
+    final soil = data.soil.toDouble();
+    final temp = data.temp.toDouble();
+    final humidity = data.humidity.toDouble();
+    final water = data.waterLevel.toDouble();
+    setState(() {
+      _soil = data.soil;
+      _ph = data.ph;
+      _temp = data.temp;
+      _humidity = data.humidity;
+      _waterLevel = data.waterLevel;
+      _soilHealth = data.soilHealth;
+      _phHealth = data.phHealth;
+      _waterHealth = data.waterHealth;
+      _soilHistory = _generateHistory(soil, 7);
+      _tempHistory = _generateHistory(temp, 7);
+      _humidityHistory = _generateHistory(humidity, 7);
+      _waterHistory = _generateWaterHistory(water, 7);
+      _lastUpdated = DateTime.now();
+    });
   }
 
   List<double> _generateHistory(double currentValue, int points) {
@@ -217,8 +249,6 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// HEADER
   /// ------------------------------------------------
   Widget _buildHeader() {
-    final user = _auth.currentUser;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -273,51 +303,26 @@ class _SensorsScreenState extends State<SensorsScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        // Display selected field (synced from dashboard)
-        if (_selectedDeviceId != null)
-          StreamBuilder<QuerySnapshot>(
-            stream: _firestore
-                .collection('crops')
-                .where('farmer_id', isEqualTo: user?.uid)
-                .where('status', isEqualTo: 'active')
-                .snapshots(),
-            builder: (context, snapshot) {
-              final crops = snapshot.data?.docs ?? [];
-
-              if (_selectedCropId != null && crops.any((c) => c.id == _selectedCropId)) {
-                final selectedCrop = crops.firstWhere((c) => c.id == _selectedCropId);
-                final data = selectedCrop.data() as Map<String, dynamic>;
-                final cropType = data['crop_type'] ?? 'Unknown';
-                final fieldName = data['field_name'] ?? 'Field A';
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'MONITORING',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withOpacity(0.5),
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$cropType - $fieldName',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              return const SizedBox.shrink();
-            },
+        if (_selectedDeviceId != null && _cropDisplayName.isNotEmpty) ...[
+          Text(
+            'MONITORING',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.5),
+              letterSpacing: 1,
+            ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            _cropDisplayName,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -328,37 +333,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/sensorHealth/soil
   /// ------------------------------------------------
   Widget _buildSoilMoistureCard() {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        int soilMoisture = 0;
-        String healthStatus = 'ok';
+    final soilMoisture = _soil;
+    final hasError = _soilHealth == 'error';
+    final status = _getSoilStatus(soilMoisture);
+    final statusColor = _getSoilStatusColor(soilMoisture);
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-            soilMoisture = data['soil'] != null
-                ? (data['soil'] is int ? data['soil'] : (data['soil'] as num).toInt())
-                : 0;
-          }
-
-          // Read health from sensorHealth node
-          if (rootData['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
-            healthStatus = health['soil']?.toString() ?? 'ok';
-          }
-        }
-
-        final hasError = healthStatus == 'error';
-        final status = _getSoilStatus(soilMoisture);
-        final statusColor = _getSoilStatusColor(soilMoisture);
-
-        return GestureDetector(
+    return GestureDetector(
           onTap: () {
             Navigator.push(
               context,
@@ -530,9 +510,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
             ],
           ),
         ),
-        );
-      },
-    );
+      );
   }
 
   /// ------------------------------------------------
@@ -541,33 +519,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/humidity
   /// ------------------------------------------------
   Widget _buildAirConditionsCard() {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        int temp = 0;
-        int humidity = 0;
+    final temp = _temp;
+    final humidity = _humidity;
+    final tempStatus = _getTempStatus(temp);
+    final tempStatusColor = _getTempStatusColor(temp);
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-            temp = data['temp'] != null
-                ? (data['temp'] is int ? data['temp'] : (data['temp'] as num).toInt())
-                : 0;
-            humidity = data['humidity'] != null
-                ? (data['humidity'] is int ? data['humidity'] : (data['humidity'] as num).toInt())
-                : 0;
-          }
-        }
-
-        final tempStatus = _getTempStatus(temp);
-        final tempStatusColor = _getTempStatusColor(temp);
-
-        return GestureDetector(
+    return GestureDetector(
           onTap: () {
             Navigator.push(
               context,
@@ -764,9 +721,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
             ],
           ),
         ),
-        );
-      },
-    );
+      );
   }
 
   /// ------------------------------------------------
@@ -775,36 +730,11 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/sensorHealth/waterLevel
   /// ------------------------------------------------
   Widget _buildWaterTankCard() {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        int waterLevel = 0;
-        String healthStatus = 'ok';
+    final waterLevel = _waterLevel;
+    final hasError = _waterHealth == 'error';
+    final isLow = waterLevel < 30 && !hasError;
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-            waterLevel = data['waterLevel'] != null
-                ? (data['waterLevel'] is int ? data['waterLevel'] : (data['waterLevel'] as num).toInt())
-                : 0;
-          }
-
-          // Read health from sensorHealth node
-          if (rootData['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
-            healthStatus = health['waterLevel']?.toString() ?? 'ok';
-          }
-        }
-
-        final hasError = healthStatus == 'error';
-        final isLow = waterLevel < 30 && !hasError;
-
-        return GestureDetector(
+    return GestureDetector(
           onTap: () {
             Navigator.push(
               context,
@@ -968,9 +898,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
             ],
           ),
         ),
-        );
-      },
-    );
+      );
   }
 
   /// ------------------------------------------------
@@ -979,37 +907,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/sensorHealth/ph
   /// ------------------------------------------------
   Widget _buildSoilPhCard() {
-    return StreamBuilder<DatabaseEvent>(
-      stream: _rtdb.ref('sensors/$_selectedDeviceId').onValue.asBroadcastStream(),
-      builder: (context, snapshot) {
-        double ph = 7.0;
-        String healthStatus = 'ok';
+    final ph = _ph;
+    final hasError = _phHealth == 'error';
+    final status = _getPhStatus(ph);
+    final statusColor = _getPhStatusColor(ph);
 
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final rootData = Map<String, dynamic>.from(
-            snapshot.data!.snapshot.value as Map,
-          );
-
-          // Read from live node
-          if (rootData['live'] != null) {
-            final data = Map<String, dynamic>.from(rootData['live']);
-            ph = data['ph'] != null
-                ? (data['ph'] is double ? data['ph'] : (data['ph'] as num).toDouble())
-                : 7.0;
-          }
-
-          // Read health from sensorHealth node
-          if (rootData['sensorHealth'] != null) {
-            final health = Map<String, dynamic>.from(rootData['sensorHealth']);
-            healthStatus = health['ph']?.toString() ?? 'ok';
-          }
-        }
-
-        final hasError = healthStatus == 'error';
-        final status = _getPhStatus(ph);
-        final statusColor = _getPhStatusColor(ph);
-
-        return GestureDetector(
+    return GestureDetector(
           onTap: () {
             Navigator.push(
               context,
@@ -1169,9 +1072,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
             ],
           ),
         ),
-        );
-      },
-    );
+      );
   }
 
   /// ------------------------------------------------

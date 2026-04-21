@@ -17,7 +17,9 @@ class DeviceMonitorService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final NotificationService _notificationService = NotificationService();
 
-  Timer? _monitorTimer;
+  StreamSubscription? _cropsSubscription;
+  final Map<String, StreamSubscription> _deviceSubscriptions = {};
+
   final Set<String> _offlineDevices = {}; // Track notified offline devices
   final Map<String, Set<String>> _failedSensors = {}; // Track notified sensor failures
   final Map<String, String> _lastWaterAlert = {}; // Track last water level alert type
@@ -26,102 +28,98 @@ class DeviceMonitorService {
   final Map<String, String> _lastSoilAlert = {}; // Track last soil moisture alert
 
   /// Start monitoring all devices for current user
+  /// Uses reactive streams — Firestore crops stream drives RTDB device listeners
   void startMonitoring() {
-    stopMonitoring(); // Stop any existing monitoring
+    stopMonitoring();
 
-    // Check every 10 seconds
-    _monitorTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _checkDevicesStatus();
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Listen to crops collection — triggers when device assignments change
+    _cropsSubscription = _firestore
+        .collection('crops')
+        .where('farmer_id', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snapshot) {
+      final newDeviceIds = <String>{};
+      for (var doc in snapshot.docs) {
+        final deviceId = doc.data()['device_id'] as String?;
+        if (deviceId != null) newDeviceIds.add(deviceId);
+      }
+      _updateDeviceSubscriptions(newDeviceIds);
+    }, onError: (e) {
+      print('[DeviceMonitor] Error on crops stream: $e');
     });
+  }
+
+  /// Update RTDB listeners when the set of assigned devices changes
+  void _updateDeviceSubscriptions(Set<String> newDeviceIds) {
+    // Cancel listeners for devices that are no longer assigned
+    final removed = _deviceSubscriptions.keys.toSet().difference(newDeviceIds);
+    for (final id in removed) {
+      _deviceSubscriptions[id]?.cancel();
+      _deviceSubscriptions.remove(id);
+    }
+
+    // Start listeners for newly assigned devices
+    for (final deviceId in newDeviceIds) {
+      if (_deviceSubscriptions.containsKey(deviceId)) continue;
+
+      _deviceSubscriptions[deviceId] = _rtdb
+          .ref('sensors/$deviceId')
+          .onValue
+          .listen((event) {
+        if (!event.snapshot.exists) return;
+        final deviceData = event.snapshot.value as Map<dynamic, dynamic>;
+
+        _checkDeviceOnlineStatus(deviceId, deviceData);
+        _checkSensorHealth(deviceId, deviceData);
+
+        final liveData = deviceData['live'] as Map<dynamic, dynamic>?;
+        if (liveData == null) return;
+
+        final waterLevel = liveData['waterLevel'];
+        if (waterLevel != null) {
+          _checkWaterLevel(deviceId, (waterLevel as num).toDouble());
+        }
+
+        final pH = liveData['pH'];
+        if (pH != null) {
+          _checkpHLevel(deviceId, (pH as num).toDouble());
+        }
+
+        final temperature = liveData['temperature'];
+        if (temperature != null) {
+          print('[DeviceMonitor] Temperature reading: ${temperature}°C for device $deviceId');
+          _checkTemperature(deviceId, (temperature as num).toDouble());
+        } else {
+          print('[DeviceMonitor] No temperature data for device $deviceId');
+        }
+
+        final soilMoisture = liveData['soilMoisture'];
+        if (soilMoisture != null) {
+          _checkSoilMoisture(deviceId, (soilMoisture as num).toDouble());
+        }
+      }, onError: (e) {
+        print('[DeviceMonitor] Error on RTDB stream for $deviceId: $e');
+      });
+    }
   }
 
   /// Stop monitoring
   void stopMonitoring() {
-    _monitorTimer?.cancel();
-    _monitorTimer = null;
+    _cropsSubscription?.cancel();
+    _cropsSubscription = null;
+    for (final sub in _deviceSubscriptions.values) {
+      sub.cancel();
+    }
+    _deviceSubscriptions.clear();
     _offlineDevices.clear();
     _failedSensors.clear();
     _lastWaterAlert.clear();
     _lastpHAlert.clear();
     _lastTempAlert.clear();
     _lastSoilAlert.clear();
-  }
-
-  /// Check status of all devices
-  Future<void> _checkDevicesStatus() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    try {
-      // First, get devices assigned to this user from Firestore
-      final userCropsSnapshot = await _firestore
-          .collection('crops')
-          .where('farmer_id', isEqualTo: user.uid)
-          .get();
-
-      if (userCropsSnapshot.docs.isEmpty) return;
-
-      // Extract unique device IDs assigned to this user
-      final userDeviceIds = <String>{};
-      for (var doc in userCropsSnapshot.docs) {
-        final data = doc.data();
-        final deviceId = data['device_id'] as String?;
-        if (deviceId != null) {
-          userDeviceIds.add(deviceId);
-        }
-      }
-
-      if (userDeviceIds.isEmpty) return;
-
-      // Now only monitor devices that belong to this user
-      for (final deviceId in userDeviceIds) {
-        final deviceRef = _rtdb.ref('sensors/$deviceId');
-        final snapshot = await deviceRef.get();
-
-        if (!snapshot.exists) continue;
-
-        final deviceData = snapshot.value as Map<dynamic, dynamic>;
-
-        // Check device online status
-        await _checkDeviceOnlineStatus(deviceId, deviceData);
-
-        // Check sensor health
-        await _checkSensorHealth(deviceId, deviceData);
-
-        // Check water level, pH, temperature, and soil from live data
-        final liveData = deviceData['live'] as Map<dynamic, dynamic>?;
-        if (liveData != null) {
-          // Check water level
-          final waterLevel = liveData['waterLevel'];
-          if (waterLevel != null) {
-            await _checkWaterLevel(deviceId, (waterLevel as num).toDouble());
-          }
-
-          // Check pH level
-          final pH = liveData['pH'];
-          if (pH != null) {
-            await _checkpHLevel(deviceId, (pH as num).toDouble());
-          }
-
-          // Check temperature
-          final temperature = liveData['temperature'];
-          if (temperature != null) {
-            print('[DeviceMonitor] Temperature reading: ${temperature}°C for device $deviceId');
-            await _checkTemperature(deviceId, (temperature as num).toDouble());
-          } else {
-            print('[DeviceMonitor] No temperature data for device $deviceId');
-          }
-
-          // Check soil moisture
-          final soilMoisture = liveData['soilMoisture'];
-          if (soilMoisture != null) {
-            await _checkSoilMoisture(deviceId, (soilMoisture as num).toDouble());
-          }
-        }
-      }
-    } catch (e) {
-      print('[DeviceMonitor] Error checking devices: $e');
-    }
   }
 
   /// Check if device is online based on lastSeen

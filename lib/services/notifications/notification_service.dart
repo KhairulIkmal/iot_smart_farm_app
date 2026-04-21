@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'models/notification_model.dart';
@@ -62,55 +64,116 @@ class NotificationService {
 
   /// Stream of all notifications for current user
   /// Combines personal notifications and admin system notifications
+  /// Admin notifications dismissed by the user are filtered out via meta/admin_dismissed
   Stream<List<NotificationModel>>? getNotificationsStream() {
     if (_userId == null || _notificationsRef == null) return null;
 
-    // Personal notifications from subcollection
     final personalStream = _notificationsRef!
         .orderBy('timestamp', descending: true)
         .snapshots();
 
-    // Combine personal notifications with admin system notifications
-    return personalStream.asyncMap((personalSnapshot) async {
-      // Get personal notifications
-      final personalNotifs = personalSnapshot.docs
-          .map((doc) => NotificationModel.fromFirestore(doc))
+    final adminStream = _firestore
+        .collection('notifications')
+        .where('farmer_id', isEqualTo: _userId)
+        .where('sentBy', isEqualTo: 'admin')
+        .snapshots();
+
+    final dismissedStream = _firestore
+        .collection('notifications')
+        .doc(_userId)
+        .collection('meta')
+        .doc('admin_dismissed')
+        .snapshots();
+
+    List<NotificationModel> latestPersonal = [];
+    List<NotificationModel> latestAdmin = [];
+    Set<String> dismissedAdminIds = {};
+    bool personalReady = false;
+    bool adminReady = false;
+    bool dismissedReady = false;
+
+    late StreamController<List<NotificationModel>> controller;
+    StreamSubscription? personalSub;
+    StreamSubscription? adminSub;
+    StreamSubscription? dismissedSub;
+
+    void emit() {
+      if (!personalReady || !adminReady || !dismissedReady) return;
+      final filteredAdmin = latestAdmin
+          .where((n) => !dismissedAdminIds.contains(n.id))
           .toList();
-
-      // Get admin system notifications from flat collection
-      final adminSnapshot = await _firestore
-          .collection('notifications')
-          .where('farmer_id', isEqualTo: _userId)
-          .where('sentBy', isEqualTo: 'admin')
-          .get();
-
-      final adminNotifs = adminSnapshot.docs.map((doc) {
-        final data = doc.data();
-        final title = data['title'] ?? 'System Notification';
-        final message = data['message'] ?? '';
-
-        // Intelligently categorize admin notifications based on content
-        final category = _categorizeAdminNotification(title, message, data);
-
-        // Convert admin notification format to NotificationModel
-        return NotificationModel(
-          id: doc.id,
-          userId: _userId!,
-          severity: _parseSeverity(data['type'] ?? 'info'),
-          category: category,
-          title: title,
-          message: message,
-          timestamp: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          isRead: data['read'] ?? false,
-          data: {'sentBy': 'admin', 'type': data['type']},
-        );
-      }).toList();
-
-      // Combine and sort by timestamp
-      final combined = [...personalNotifs, ...adminNotifs];
+      final combined = [...latestPersonal, ...filteredAdmin];
       combined.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      return combined;
-    });
+      controller.add(combined);
+    }
+
+    controller = StreamController<List<NotificationModel>>(
+      onListen: () {
+        personalSub = personalStream.listen(
+          (snapshot) {
+            // Exclude archived from the main feed — they belong in Archive tab only
+            latestPersonal = snapshot.docs
+                .map((doc) => NotificationModel.fromFirestore(doc))
+                .where((n) => !n.isArchived)
+                .toList();
+            personalReady = true;
+            emit();
+          },
+          onError: controller.addError,
+        );
+
+        adminSub = adminStream.listen(
+          (snapshot) {
+            latestAdmin = snapshot.docs.map((doc) {
+              final data = doc.data();
+              final title = data['title'] ?? 'System Notification';
+              final message = data['message'] ?? '';
+              final category = _categorizeAdminNotification(title, message, data);
+              return NotificationModel(
+                id: doc.id,
+                userId: _userId!,
+                severity: _parseSeverity(data['type'] ?? 'info'),
+                category: category,
+                title: title,
+                message: message,
+                timestamp: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                isRead: data['read'] ?? false,
+                data: {'sentBy': 'admin', 'type': data['type']},
+              );
+            }).toList();
+            adminReady = true;
+            emit();
+          },
+          onError: controller.addError,
+        );
+
+        dismissedSub = dismissedStream.listen(
+          (doc) {
+            if (doc.exists) {
+              final data = doc.data();
+              final ids = (data?['ids'] as List<dynamic>?)?.cast<String>() ?? [];
+              dismissedAdminIds = ids.toSet();
+            } else {
+              dismissedAdminIds = {};
+            }
+            dismissedReady = true;
+            emit();
+          },
+          onError: (_) {
+            // If meta doc can't be read, don't block the stream
+            dismissedReady = true;
+            emit();
+          },
+        );
+      },
+      onCancel: () {
+        personalSub?.cancel();
+        adminSub?.cancel();
+        dismissedSub?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   /// Parse severity from admin notification type
@@ -275,6 +338,37 @@ class NotificationService {
     await batch.commit();
   }
 
+  /// Mark all personal notifications as read AND archive them in one batch.
+  /// Admin notifications are only marked as read (no archive field on that collection).
+  Future<void> markAllAsReadAndArchive() async {
+    if (_userId == null || _notificationsRef == null) return;
+
+    final batch = _firestore.batch();
+
+    // Personal notifications — mark read + archive in one write per doc
+    final personalDocs = await _notificationsRef!.get();
+    for (final doc in personalDocs.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final isArchived = data['isArchived'] == true;
+      if (!isArchived) {
+        batch.update(doc.reference, {'isRead': true, 'isArchived': true});
+      }
+    }
+
+    // Admin notifications — mark read only (flat collection, no isArchived field)
+    final unreadAdminDocs = await _firestore
+        .collection('notifications')
+        .where('farmer_id', isEqualTo: _userId)
+        .where('sentBy', isEqualTo: 'admin')
+        .where('read', isEqualTo: false)
+        .get();
+    for (final doc in unreadAdminDocs.docs) {
+      batch.update(doc.reference, {'read': true});
+    }
+
+    await batch.commit();
+  }
+
   /// Delete a notification
   Future<void> deleteNotification(String notificationId) async {
     if (_notificationsRef == null) return;
@@ -334,5 +428,80 @@ class NotificationService {
       'actionTaken': true,
       'isRead': true,
     });
+  }
+
+  /// Archive a single notification — removes from main list, saves in archive.
+  /// For admin notifications (stored in the root collection, not user subcollection),
+  /// we track dismissal in the user's own meta document instead.
+  Future<void> archiveNotification(String notificationId) async {
+    if (_userId == null) return;
+
+    // Check if it exists in the personal subcollection first
+    try {
+      final personalDoc = await _notificationsRef?.doc(notificationId).get();
+      if (personalDoc != null && personalDoc.exists) {
+        await _notificationsRef!.doc(notificationId).update({
+          'isArchived': true,
+          'isRead': true,
+        });
+        return;
+      }
+    } catch (_) {}
+
+    // Not in personal subcollection — it's an admin notification.
+    // Track dismissal in user-owned meta doc (user has write access to their own subcollection).
+    try {
+      await _firestore
+          .collection('notifications')
+          .doc(_userId)
+          .collection('meta')
+          .doc('admin_dismissed')
+          .set(
+            {'ids': FieldValue.arrayUnion([notificationId])},
+            SetOptions(merge: true),
+          );
+    } catch (_) {}
+  }
+
+  /// Restore a notification from archive back to the main list
+  Future<void> unarchiveNotification(String notificationId) async {
+    if (_notificationsRef == null) return;
+    try {
+      await _notificationsRef!.doc(notificationId).update({
+        'isArchived': false,
+      });
+    } catch (_) {}
+  }
+
+  /// Archive all read notifications in one batch
+  Future<void> archiveAllRead() async {
+    if (_notificationsRef == null) return;
+
+    final snapshot = await _notificationsRef!.get();
+    final batch = _firestore.batch();
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final isRead = data['isRead'] == true;
+      final isArchived = data['isArchived'] == true;
+      if (isRead && !isArchived) {
+        batch.update(doc.reference, {'isArchived': true});
+      }
+    }
+
+    await batch.commit();
+  }
+
+  /// Stream of archived notifications (for the Archive tab)
+  Stream<List<NotificationModel>>? getArchivedNotificationsStream() {
+    if (_notificationsRef == null) return null;
+
+    return _notificationsRef!
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => NotificationModel.fromFirestore(doc))
+            .where((n) => n.isArchived)
+            .toList());
   }
 }

@@ -64,6 +64,9 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // Touch interaction for tooltip
+  double? _touchX;
+
   // Sensor configuration
   late _SensorConfig _config;
 
@@ -851,13 +854,35 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
       );
     }
 
-    return CustomPaint(
-      size: const Size(double.infinity, 200),
-      painter: _LineChartPainter(
-        data: _historyData,
-        color: _config.color,
-        minValue: _config.minValue,
-        maxValue: _config.maxValue,
+    return GestureDetector(
+      onPanStart: (details) {
+        setState(() => _touchX = details.localPosition.dx);
+      },
+      onPanUpdate: (details) {
+        setState(() => _touchX = details.localPosition.dx);
+      },
+      onPanEnd: (_) {
+        setState(() => _touchX = null);
+      },
+      onTapDown: (details) {
+        setState(() => _touchX = details.localPosition.dx);
+      },
+      onTapUp: (_) {
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) setState(() => _touchX = null);
+        });
+      },
+      child: CustomPaint(
+        size: const Size(double.infinity, 200),
+        painter: _LineChartPainter(
+          data: _historyData,
+          color: _config.color,
+          minValue: _config.minValue,
+          maxValue: _config.maxValue,
+          touchX: _touchX,
+          unit: _config.unit,
+          sensorType: widget.sensorType,
+        ),
       ),
     );
   }
@@ -991,13 +1016,25 @@ class _LineChartPainter extends CustomPainter {
   final Color color;
   final double minValue;
   final double maxValue;
+  final double? touchX;
+  final String unit;
+  final String sensorType;
 
   _LineChartPainter({
     required this.data,
     required this.color,
     required this.minValue,
     required this.maxValue,
+    required this.unit,
+    required this.sensorType,
+    this.touchX,
   });
+
+  String _formatLabel(double value) {
+    if (sensorType == 'ph') return '${value.toStringAsFixed(1)} pH';
+    if (sensorType == 'temp') return '${value.toStringAsFixed(0)}°C';
+    return '${value.toStringAsFixed(0)}%';
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1063,56 +1100,83 @@ class _LineChartPainter extends CustomPainter {
     // Draw line
     canvas.drawPath(path, paint);
 
-    // Draw highlighted point (latest)
-    if (points.isNotEmpty) {
-      final lastPoint = points.last;
+    // Draw highlighted point (latest) — only when not touching
+    if (points.isNotEmpty && touchX == null) {
+      _drawDot(canvas, points.last, color);
+      _drawTooltip(canvas, size, points.last, data.last.value, color);
+    }
 
-      // Outer glow
-      canvas.drawCircle(lastPoint, 8, Paint()..color = color.withOpacity(0.3));
+    // Draw interactive tooltip on touch
+    if (touchX != null && points.isNotEmpty) {
+      // Find nearest data point index
+      final clampedX = touchX!.clamp(0.0, size.width);
+      final approxIndex = (clampedX / xStep).round().clamp(0, points.length - 1);
+      final touchedPoint = points[approxIndex];
+      final touchedValue = data[approxIndex].value;
 
-      // Inner dot
-      canvas.drawCircle(lastPoint, 5, Paint()..color = color);
-
-      // Center
-      canvas.drawCircle(lastPoint, 2, Paint()..color = Colors.white);
-
-      // Draw value label
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: '${data.last.value.toStringAsFixed(0)}%',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-
-      final labelOffset = Offset(
-        lastPoint.dx - textPainter.width / 2,
-        lastPoint.dy - 25,
+      // Vertical indicator line
+      final linePaint = Paint()
+        ..color = Colors.white.withOpacity(0.3)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(
+        Offset(touchedPoint.dx, 0),
+        Offset(touchedPoint.dx, size.height),
+        linePaint,
       );
 
-      // Label background
-      final labelRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          labelOffset.dx - 6,
-          labelOffset.dy - 4,
-          textPainter.width + 12,
-          textPainter.height + 8,
-        ),
-        const Radius.circular(6),
-      );
-      canvas.drawRRect(labelRect, Paint()..color = color);
-
-      textPainter.paint(canvas, labelOffset);
+      _drawDot(canvas, touchedPoint, color);
+      _drawTooltip(canvas, size, touchedPoint, touchedValue, color);
     }
   }
 
+  void _drawDot(Canvas canvas, Offset point, Color color) {
+    canvas.drawCircle(point, 8, Paint()..color = color.withOpacity(0.3));
+    canvas.drawCircle(point, 5, Paint()..color = color);
+    canvas.drawCircle(point, 2, Paint()..color = Colors.white);
+  }
+
+  void _drawTooltip(Canvas canvas, Size size, Offset point, double value, Color color) {
+    final label = _formatLabel(value);
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    const hPad = 8.0;
+    const vPad = 5.0;
+    final tooltipW = textPainter.width + hPad * 2;
+    final tooltipH = textPainter.height + vPad * 2;
+
+    // Keep tooltip within horizontal bounds
+    double tooltipLeft = point.dx - tooltipW / 2;
+    tooltipLeft = tooltipLeft.clamp(0.0, size.width - tooltipW);
+
+    // Place above the dot; flip below if too close to top
+    double tooltipTop = point.dy - tooltipH - 12;
+    if (tooltipTop < 0) tooltipTop = point.dy + 12;
+
+    final labelRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(tooltipLeft, tooltipTop, tooltipW, tooltipH),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(labelRect, Paint()..color = color);
+
+    textPainter.paint(canvas, Offset(tooltipLeft + hPad, tooltipTop + vPad));
+  }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _LineChartPainter old) =>
+      old.touchX != touchX || old.data != data;
 }
 
 /// ------------------------------------------------
