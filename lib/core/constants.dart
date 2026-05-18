@@ -31,7 +31,7 @@ class AppStrings {
   static const String sensors = 'Sensors';
   static const String water = 'Water';
   static const String aiAssist = 'AI Assist';
-  static const String more = 'More';
+  static const String more = 'Settings';
 
   // Dashboard
   static const String activeField = 'Active Field';

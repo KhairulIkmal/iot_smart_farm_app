@@ -8,8 +8,7 @@ import '../../auth/auth_service.dart';
 import '../../services/selected_crop_service.dart';
 import '../navigation/main_navigation.dart';
 import 'claim_device_screen.dart';
-import 'unclaim_device_dialog.dart';
-import 'edit_crop_screen.dart';
+import 'crop_detail_screen.dart';
 
 /// ------------------------------------------------------------
 /// CROP LIST SCREEN (CROP MANAGEMENT)
@@ -502,6 +501,7 @@ class _CropListScreenState extends State<CropListScreen> {
                 final plantingDate = data['planting_date'] as Timestamp?;
                 final fieldName = data['field_name'] as String? ?? 'Field A';
                 final notes = data['notes'] as String? ?? '';
+                final imageUrl = data['image_url'] as String?;
 
                 return _buildCropCard(
                   cropId: cropId,
@@ -510,6 +510,7 @@ class _CropListScreenState extends State<CropListScreen> {
                   plantingDate: plantingDate,
                   fieldName: fieldName,
                   notes: notes,
+                  imageUrl: imageUrl,
                 );
               }).toList(),
             );
@@ -526,12 +527,17 @@ class _CropListScreenState extends State<CropListScreen> {
     Timestamp? plantingDate,
     required String fieldName,
     required String notes,
+    String? imageUrl,
   }) {
     return GestureDetector(
-      onTap: () => _navigateToDashboard(
+      onTap: () => _openCropDetail(
         cropId: cropId,
-        deviceId: deviceId,
         cropType: cropType,
+        deviceId: deviceId,
+        fieldName: fieldName,
+        notes: notes,
+        imageUrl: imageUrl,
+        plantingDate: plantingDate,
       ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -544,30 +550,16 @@ class _CropListScreenState extends State<CropListScreen> {
           child: Stack(
             children: [
               // Background Image
-              Container(
+              SizedBox(
                 height: 180,
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      _getCropColor(cropType).withOpacity(0.3),
-                      AppColors.backgroundDark,
-                    ],
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: Icon(
-                      _getCropIcon(cropType),
-                      size: 80,
-                      color: _getCropColor(cropType).withOpacity(0.3),
-                    ),
-                  ),
-                ),
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _buildCropCardPlaceholder(cropType),
+                      )
+                    : _buildCropCardPlaceholder(cropType),
               ),
               // Content Overlay
               Positioned(
@@ -663,70 +655,17 @@ class _CropListScreenState extends State<CropListScreen> {
                               ],
                             ),
                           ),
-                          // Action Buttons
-                          Row(
-                            children: [
-                              // Edit Button
-                              ElevatedButton(
-                                onPressed: () => _showEditCropDialog(
-                                  cropId: cropId,
-                                  cropType: cropType,
-                                  fieldName: fieldName,
-                                  notes: notes,
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary.withOpacity(
-                                    0.2,
-                                  ),
-                                  foregroundColor: AppColors.primary,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: const Text(
-                                  'Edit',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Delete Button
-                              ElevatedButton(
-                                onPressed: () => _showUnclaimDialog(
-                                  cropId: cropId,
-                                  deviceId: deviceId,
-                                  cropType: cropType,
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.error.withOpacity(
-                                    0.2,
-                                  ),
-                                  foregroundColor: AppColors.error,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: const Text(
-                                  'Delete',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black26,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ],
                       ),
@@ -735,6 +674,32 @@ class _CropListScreenState extends State<CropListScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCropCardPlaceholder(String cropType) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            _getCropColor(cropType).withOpacity(0.3),
+            AppColors.backgroundDark,
+          ],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Align(
+          alignment: Alignment.topRight,
+          child: Icon(
+            _getCropIcon(cropType),
+            size: 80,
+            color: _getCropColor(cropType).withOpacity(0.3),
           ),
         ),
       ),
@@ -815,96 +780,29 @@ class _CropListScreenState extends State<CropListScreen> {
     }
   }
 
-  void _navigateToDashboard({
+  Future<void> _openCropDetail({
     required String cropId,
+    required String cropType,
     required String deviceId,
-    required String cropType,
-  }) {
-    // Update the selected crop via the service
-    final selectedCropService = SelectedCropService();
-    selectedCropService.updateSelectedCrop(
-      cropId: cropId,
-      deviceId: deviceId,
-      cropType: cropType,
-    );
-
-    // Navigate back to main navigation (Dashboard tab)
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MainNavigation()),
-      (route) => false,
-    );
-  }
-
-  Future<void> _showEditCropDialog({
-    required String cropId,
-    required String cropType,
     required String fieldName,
     required String notes,
+    String? imageUrl,
+    Timestamp? plantingDate,
   }) async {
-    final result = await Navigator.push<bool>(
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => EditCropScreen(
+        builder: (_) => CropDetailScreen(
           cropId: cropId,
-          currentCropType: cropType,
-          currentFieldName: fieldName,
-          currentNotes: notes,
+          cropType: cropType,
+          deviceId: deviceId,
+          fieldName: fieldName,
+          notes: notes,
+          imageUrl: imageUrl,
+          plantingDate: plantingDate,
         ),
       ),
     );
-
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 12),
-              Text('Crop updated successfully'),
-            ],
-          ),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _showUnclaimDialog({
-    required String cropId,
-    required String deviceId,
-    required String cropType,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => UnclaimDeviceDialog(
-        cropId: cropId,
-        deviceId: deviceId,
-        cropType: cropType,
-      ),
-    );
-
-    if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('$cropType crop has been deleted'),
-            ],
-          ),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    }
   }
 
   Future<void> _handleLogout() async {

@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme.dart';
 
 /// ------------------------------------------------------------
 /// EDIT CROP SCREEN
 /// Allows farmers to update crop details:
+/// - Crop Image (camera or gallery)
 /// - Crop Type
 /// - Field Name
 /// - Notes
@@ -15,6 +20,7 @@ class EditCropScreen extends StatefulWidget {
   final String currentCropType;
   final String currentFieldName;
   final String currentNotes;
+  final String? currentImageUrl;
 
   const EditCropScreen({
     super.key,
@@ -22,6 +28,7 @@ class EditCropScreen extends StatefulWidget {
     required this.currentCropType,
     required this.currentFieldName,
     required this.currentNotes,
+    this.currentImageUrl,
   });
 
   @override
@@ -31,12 +38,17 @@ class EditCropScreen extends StatefulWidget {
 class _EditCropScreenState extends State<EditCropScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
 
   late TextEditingController _cropTypeController;
   late TextEditingController _fieldNameController;
   late TextEditingController _notesController;
 
   bool _isLoading = false;
+  bool _isUploadingImage = false;
+  File? _pickedImage;
+  String? _imageUrl;
 
   // Available crop types
   final List<String> _cropTypes = [
@@ -59,6 +71,7 @@ class _EditCropScreenState extends State<EditCropScreen> {
     _cropTypeController = TextEditingController(text: widget.currentCropType);
     _fieldNameController = TextEditingController(text: widget.currentFieldName);
     _notesController = TextEditingController(text: widget.currentNotes);
+    _imageUrl = widget.currentImageUrl;
   }
 
   @override
@@ -97,6 +110,10 @@ class _EditCropScreenState extends State<EditCropScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Crop Image Picker
+                _buildImagePicker(),
+                const SizedBox(height: 24),
+
                 // Info Card
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -297,6 +314,297 @@ class _EditCropScreenState extends State<EditCropScreen> {
     );
   }
 
+  /// ------------------------------------------------
+  /// IMAGE PICKER WIDGET
+  /// ------------------------------------------------
+  Widget _buildImagePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('Crop Photo (Optional)'),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _isUploadingImage ? null : _showImageSourceSheet,
+          child: Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _pickedImage != null || _imageUrl != null
+                    ? AppColors.primary.withOpacity(0.5)
+                    : AppColors.borderDark,
+                width: 1.5,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: _buildImageContent(),
+            ),
+          ),
+        ),
+        if (_pickedImage != null || _imageUrl != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: _removeImage,
+              icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
+              label: const Text(
+                'Remove photo',
+                style: TextStyle(color: AppColors.error, fontSize: 13),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildImageContent() {
+    if (_isUploadingImage) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Uploading...',
+              style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show locally picked image
+    if (_pickedImage != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(_pickedImage!, fit: BoxFit.cover),
+          Positioned(
+            right: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'Change',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Show existing image from Firestore
+    if (_imageUrl != null && _imageUrl!.isNotEmpty) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            _imageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildEmptyImagePlaceholder(),
+          ),
+          Positioned(
+            right: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.edit, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'Change',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Empty placeholder
+    return _buildEmptyImagePlaceholder();
+  }
+
+  Widget _buildEmptyImagePlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_photo_alternate_outlined,
+          size: 48,
+          color: Colors.white.withOpacity(0.3),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Tap to add a photo',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.5),
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Camera or Gallery',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.3),
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ------------------------------------------------
+  /// IMAGE ACTIONS
+  /// ------------------------------------------------
+  void _showImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Choose Photo Source',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.camera_alt, color: AppColors.primary),
+                ),
+                title: const Text(
+                  'Take a Photo',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Use your camera',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+                ),
+                title: const Text(
+                  'Choose from Gallery',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Pick from your photos',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final XFile? file = await _picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1080,
+    );
+    if (file == null) return;
+
+    setState(() {
+      _pickedImage = File(file.path);
+    });
+  }
+
+  void _removeImage() {
+    setState(() {
+      _pickedImage = null;
+      _imageUrl = null;
+    });
+  }
+
+  /// Upload picked image to Firebase Storage and return the download URL
+  Future<String?> _uploadImage() async {
+    if (_pickedImage == null) return _imageUrl;
+
+    setState(() => _isUploadingImage = true);
+    try {
+      final ref = _storage
+          .ref()
+          .child('crop_images')
+          .child('${widget.cropId}.jpg');
+
+      await ref.putFile(_pickedImage!);
+      final url = await ref.getDownloadURL();
+      return url;
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+
   Widget _buildLabel(String text) {
     return Text(
       text,
@@ -318,16 +626,27 @@ class _EditCropScreenState extends State<EditCropScreen> {
     });
 
     try {
-      // Update crop document in Firestore
-      await _firestore.collection('crops').doc(widget.cropId).update({
+      // Upload image if a new one was picked
+      final uploadedUrl = await _uploadImage();
+
+      final Map<String, dynamic> updateData = {
         'crop_type': _cropTypeController.text.trim(),
         'field_name': _fieldNameController.text.trim(),
         'notes': _notesController.text.trim(),
         'updated_at': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Only update image_url if changed (set or removed)
+      if (_pickedImage != null && uploadedUrl != null) {
+        updateData['image_url'] = uploadedUrl;
+      } else if (_imageUrl == null && widget.currentImageUrl != null) {
+        // User removed the image
+        updateData['image_url'] = FieldValue.delete();
+      }
+
+      await _firestore.collection('crops').doc(widget.cropId).update(updateData);
 
       if (mounted) {
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -345,7 +664,6 @@ class _EditCropScreenState extends State<EditCropScreen> {
           ),
         );
 
-        // Return true to indicate success
         Navigator.pop(context, true);
       }
     } catch (e) {

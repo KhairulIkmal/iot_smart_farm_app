@@ -19,6 +19,7 @@ class CropModel {
   final String cropType;
   final String? fieldName;
   final String? notes;
+  final String? imageUrl;
   final CropStatus status;
   final DateTime? createdAt;
   final DateTime? deactivatedAt;
@@ -31,6 +32,7 @@ class CropModel {
     required this.cropType,
     this.fieldName,
     this.notes,
+    this.imageUrl,
     this.status = CropStatus.active,
     this.createdAt,
     this.deactivatedAt,
@@ -47,6 +49,7 @@ class CropModel {
       cropType: data['crop_type'] ?? '',
       fieldName: data['field_name'],
       notes: data['notes'],
+      imageUrl: data['image_url'],
       status: CropStatus.fromString(data['status']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       deactivatedAt: (data['deactivatedAt'] as Timestamp?)?.toDate(),
@@ -63,6 +66,7 @@ class CropModel {
       cropType: map['crop_type'] ?? '',
       fieldName: map['field_name'],
       notes: map['notes'],
+      imageUrl: map['image_url'],
       status: CropStatus.fromString(map['status']),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       deactivatedAt: (map['deactivatedAt'] as Timestamp?)?.toDate(),
@@ -95,6 +99,7 @@ class CropModel {
     String? cropType,
     String? fieldName,
     String? notes,
+    String? imageUrl,
     CropStatus? status,
     DateTime? createdAt,
     DateTime? deactivatedAt,
@@ -107,6 +112,7 @@ class CropModel {
       cropType: cropType ?? this.cropType,
       fieldName: fieldName ?? this.fieldName,
       notes: notes ?? this.notes,
+      imageUrl: imageUrl ?? this.imageUrl,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       deactivatedAt: deactivatedAt ?? this.deactivatedAt,

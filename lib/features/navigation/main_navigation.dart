@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../sensors/sensors_screen.dart';
@@ -87,7 +88,7 @@ class _MainNavigationState extends State<MainNavigation> {
                       index: 4,
                       icon: Icons.menu,
                       activeIcon: Icons.menu,
-                      label: 'More',
+                      label: AppStrings.more,
                     ),
                   ],
                 ),
