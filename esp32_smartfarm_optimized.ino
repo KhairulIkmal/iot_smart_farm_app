@@ -38,6 +38,10 @@
 #define M2A 14
 #define M2B 27
 
+// ---- Buzzer ----
+#define PIN_BUZZER 23
+#define BUZZER_CH  0
+
 // ================ Water Level Calibration ===============
 // CALIBRATION: Adjust these values based on your sensor readings!
 // DRY_VALUE: ADC reading when sensor is completely out of water
@@ -228,6 +232,72 @@ void updateSensorHealth()
   }
 }
 
+// ========================= BUZZER =========================
+
+void buzzerInit() {
+  ledcSetup(BUZZER_CH, 2000, 8);
+  ledcAttachPin(PIN_BUZZER, BUZZER_CH);
+  ledcWrite(BUZZER_CH, 0); // silent on start
+}
+
+// Sensor error — 3 short rapid alarm beeps
+void buzzSensorError() {
+  for (int i = 0; i < 3; i++) {
+    ledcWriteTone(BUZZER_CH, 800);
+    delay(100);
+    ledcWrite(BUZZER_CH, 0);
+    delay(80);
+  }
+}
+
+// WiFi / Firebase connection failed — 2 descending sad tones
+void buzzConnectFail() {
+  ledcWriteTone(BUZZER_CH, 800);
+  delay(300);
+  ledcWrite(BUZZER_CH, 0);
+  delay(80);
+  ledcWriteTone(BUZZER_CH, 400);
+  delay(500);
+  ledcWrite(BUZZER_CH, 0);
+}
+
+// Successfully connected — ascending C-E-G jingle
+void buzzSuccess() {
+  ledcWriteTone(BUZZER_CH, 523); // C
+  delay(150);
+  ledcWrite(BUZZER_CH, 0);
+  delay(50);
+  ledcWriteTone(BUZZER_CH, 659); // E
+  delay(150);
+  ledcWrite(BUZZER_CH, 0);
+  delay(50);
+  ledcWriteTone(BUZZER_CH, 784); // G
+  delay(300);
+  ledcWrite(BUZZER_CH, 0);
+}
+
+// Pump turned ON — short rising beep
+void buzzPumpOn() {
+  ledcWriteTone(BUZZER_CH, 400);
+  delay(80);
+  ledcWrite(BUZZER_CH, 0);
+  delay(30);
+  ledcWriteTone(BUZZER_CH, 800);
+  delay(120);
+  ledcWrite(BUZZER_CH, 0);
+}
+
+// Pump turned OFF — short falling beep
+void buzzPumpOff() {
+  ledcWriteTone(BUZZER_CH, 800);
+  delay(80);
+  ledcWrite(BUZZER_CH, 0);
+  delay(30);
+  ledcWriteTone(BUZZER_CH, 400);
+  delay(120);
+  ledcWrite(BUZZER_CH, 0);
+}
+
 // --------- Motor2 (pump) control ----------
 void pumpInit()
 {
@@ -248,6 +318,7 @@ void pumpOn()
   digitalWrite(M2B, LOW);
   S.pumpOn = true;
   Serial.println("[PUMP] ON");
+  buzzPumpOn();
 }
 
 void pumpOff()
@@ -256,6 +327,7 @@ void pumpOff()
   digitalWrite(M2B, LOW);
   S.pumpOn = false;
   Serial.println("[PUMP] OFF");
+  buzzPumpOff();
 }
 
 // ---------- Command Execution ----------
@@ -959,6 +1031,7 @@ void setup()
 
   dht.begin();
   pumpInit();
+  buzzerInit();
 
   // Wi-Fi
   display.setCursor(0, 16);
@@ -1008,6 +1081,7 @@ void setup()
     display.setCursor(0, 32);
     display.print("WiFi: FAIL");
     display.display();
+    buzzConnectFail();
     return;
   }
 
@@ -1045,6 +1119,7 @@ void setup()
   {
     firebaseReady = true;
     Serial.println("[FB] Ready!");
+    buzzSuccess();
 
     String cmdPath = "commands/" DEVICE_ID;
     if (!Firebase.RTDB.beginStream(&streamFbdo, cmdPath.c_str()))
@@ -1061,6 +1136,7 @@ void setup()
   {
     Serial.println("[FB] NOT READY!");
     S.lastErr = "FB not ready";
+    buzzConnectFail();
   }
 
   display.setCursor(0, 64);
@@ -1126,6 +1202,7 @@ void loop()
     Serial.printf("[WATER] Raw: %d, Percent: %d%%\n", S.waterLevelRaw, S.tankPct);
 
     updateSensorHealth();
+    if (hasAnyError()) buzzSensorError();
   }
 
   // 3. PUSH SENSOR DATA - Every 5 seconds (includes all sensor values)
