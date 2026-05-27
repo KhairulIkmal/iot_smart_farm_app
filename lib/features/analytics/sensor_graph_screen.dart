@@ -3,6 +3,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'dart:math' as math;
 
 import '../../core/theme.dart';
+import '../../core/app_localizations.dart';
 
 /// ------------------------------------------------------------
 /// SENSOR GRAPH SCREEN
@@ -98,7 +99,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             if (v < 30) return AppColors.error;
             if (v > 70) return AppColors.warning;
             if (v >= 50 && v <= 70) return AppColors.primary;
-            return Colors.white;
+            return Colors.grey;
           },
         );
       case 'temp':
@@ -119,7 +120,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             if (v < 15) return AppColors.info;
             if (v > 35) return AppColors.error;
             if (v >= 20 && v <= 30) return AppColors.primary;
-            return Colors.white;
+            return Colors.grey;
           },
         );
       case 'humidity':
@@ -140,7 +141,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             if (v < 30) return AppColors.warning;
             if (v > 80) return AppColors.info;
             if (v >= 50 && v <= 70) return AppColors.primary;
-            return Colors.white;
+            return Colors.grey;
           },
         );
       case 'ph':
@@ -161,7 +162,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             if (v < 5.5) return AppColors.error;
             if (v > 7.5) return AppColors.info;
             if (v >= 6.0 && v <= 7.0) return AppColors.primary;
-            return Colors.white;
+            return Colors.grey;
           },
         );
       case 'waterLevel':
@@ -182,7 +183,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             if (v < 20) return AppColors.error;
             if (v < 40) return AppColors.warning;
             if (v > 80) return AppColors.primary;
-            return Colors.white;
+            return Colors.grey;
           },
         );
       default:
@@ -474,10 +475,11 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -486,25 +488,25 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Sensor Analytics',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Sensor Analytics'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            icon: Icon(Icons.settings_outlined, color: ThemeColors.icon(context)),
             onPressed: () {
               // Settings action
             },
@@ -557,7 +559,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(30),
       ),
       child: Row(
@@ -581,14 +583,14 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                   borderRadius: BorderRadius.circular(26),
                 ),
                 child: Text(
-                  range,
+                  AppLocalizations.of(context).t(range),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: isSelected
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.6),
+                        ? ThemeColors.textPrimary(context)
+                        : ThemeColors.textSecondary(context).withOpacity(0.6),
                   ),
                 ),
               ),
@@ -635,15 +637,15 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                   children: [
                     Text(
                       '${_currentValue?.toStringAsFixed(widget.sensorType == 'ph' ? 1 : 0) ?? '--'}${_config.unit == 'pH' ? '' : _config.unit}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 36,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: ThemeColors.textPrimary(context),
                       ),
                     ),
                     Icon(
                       _config.icon,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       size: 24,
                     ),
                   ],
@@ -651,10 +653,10 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                 const SizedBox(height: 8),
                 Text(
                   _config.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -672,19 +674,19 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   secondarySensor.value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -693,7 +695,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.7),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.7),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -701,7 +703,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                   'Status: ${secondarySensor.status}',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   ),
                 ),
               ],
@@ -764,9 +766,9 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -779,21 +781,21 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'TREND ANALYSIS',
+                    AppLocalizations.of(context).t('TREND ANALYSIS'),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       letterSpacing: 1,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${_config.name} Trends',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: ThemeColors.textPrimary(context),
                     ),
                   ),
                 ],
@@ -849,7 +851,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
       return Center(
         child: Text(
           'No data available',
-          style: TextStyle(color: Colors.white.withOpacity(0.5)),
+          style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5)),
         ),
       );
     }
@@ -877,6 +879,8 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
         painter: _LineChartPainter(
           data: _historyData,
           color: _config.color,
+          surfaceColor: ThemeColors.surface(context),
+          indicatorColor: ThemeColors.textSecondary(context),
           minValue: _config.minValue,
           maxValue: _config.maxValue,
           touchX: _touchX,
@@ -900,7 +904,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
               ),
             ),
           )
@@ -917,9 +921,9 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -940,7 +944,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.5),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   letterSpacing: 1,
                 ),
               ),
@@ -949,10 +953,10 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
           const SizedBox(height: 16),
           Text(
             insight.title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -960,7 +964,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
             insight.message,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.7),
+              color: ThemeColors.textSecondary(context).withOpacity(0.7),
               height: 1.5,
             ),
           ),
@@ -980,14 +984,14 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
           Icon(
             Icons.error_outline,
             size: 64,
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
           const SizedBox(height: 16),
           Text(
             _error ?? 'An error occurred',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
           const SizedBox(height: 24),
@@ -1000,7 +1004,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('Retry'),
+            child: Text(AppLocalizations.of(context).t('Retry')),
           ),
         ],
       ),
@@ -1014,6 +1018,8 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
 class _LineChartPainter extends CustomPainter {
   final List<_SensorDataPoint> data;
   final Color color;
+  final Color surfaceColor;
+  final Color indicatorColor;
   final double minValue;
   final double maxValue;
   final double? touchX;
@@ -1023,6 +1029,8 @@ class _LineChartPainter extends CustomPainter {
   _LineChartPainter({
     required this.data,
     required this.color,
+    required this.surfaceColor,
+    required this.indicatorColor,
     required this.minValue,
     required this.maxValue,
     required this.unit,
@@ -1116,7 +1124,7 @@ class _LineChartPainter extends CustomPainter {
 
       // Vertical indicator line
       final linePaint = Paint()
-        ..color = Colors.white.withOpacity(0.3)
+        ..color = indicatorColor.withOpacity(0.3)
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke;
       canvas.drawLine(
@@ -1133,7 +1141,7 @@ class _LineChartPainter extends CustomPainter {
   void _drawDot(Canvas canvas, Offset point, Color color) {
     canvas.drawCircle(point, 8, Paint()..color = color.withOpacity(0.3));
     canvas.drawCircle(point, 5, Paint()..color = color);
-    canvas.drawCircle(point, 2, Paint()..color = Colors.white);
+    canvas.drawCircle(point, 2, Paint()..color = surfaceColor);
   }
 
   void _drawTooltip(Canvas canvas, Size size, Offset point, double value, Color color) {

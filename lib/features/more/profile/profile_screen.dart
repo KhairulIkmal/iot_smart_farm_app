@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'dart:io';
 
+import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 import '../../../widgets/index.dart';
 import '../../../services/user_counter_service.dart';
@@ -155,9 +156,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// PHOTO UPLOAD - SHOW BOTTOM SHEET
   /// ------------------------------------------------
   Future<void> _showPhotoOptions() async {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: ThemeColors.surface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -170,17 +172,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.borderDark,
+                color: ThemeColors.border(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Profile Photo',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 20),
@@ -193,9 +195,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: const Icon(Icons.camera_alt, color: AppColors.primary),
               ),
-              title: const Text(
-                'Take Photo',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              title: Text(
+                l10n.t('Take Photo'),
+                style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500),
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -211,9 +213,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: const Icon(Icons.photo_library, color: AppColors.primary),
               ),
-              title: const Text(
-                'Choose from Gallery',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+              title: Text(
+                l10n.t('Choose from Gallery'),
+                style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500),
               ),
               onTap: () {
                 Navigator.pop(context);
@@ -230,9 +232,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: const Icon(Icons.delete, color: AppColors.error),
                 ),
-                title: const Text(
-                  'Remove Photo',
-                  style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w500),
+                title: Text(
+                  l10n.t('Remove Photo'),
+                  style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w500),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -319,13 +321,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Profile photo updated'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(l10n.t('Profile photo updated')),
               ],
             ),
             backgroundColor: AppColors.primary,
@@ -386,13 +389,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Profile photo removed'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(l10n.t('Profile photo removed')),
               ],
             ),
             backgroundColor: AppColors.primary,
@@ -419,12 +423,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final user = _auth.currentUser;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -433,21 +438,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Profile'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
         actions: [
           if (!_isEditing)
@@ -476,7 +481,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Email (non-editable)
                     _buildInfoCard(
                       icon: Icons.email_outlined,
-                      label: 'Email',
+                      label: l10n.t('Email'),
                       value: user?.email ?? 'Not set',
                     ),
                     const SizedBox(height: 16),
@@ -484,7 +489,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Name Field
                     CustomTextField(
                       controller: _nameController,
-                      label: 'Full Name',
+                      label: l10n.t('Full Name'),
                       icon: Icons.person_outline,
                       enabled: _isEditing,
                       validator: (v) =>
@@ -495,7 +500,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Phone Field
                     CustomTextField.phone(
                       controller: _phoneController,
-                      label: 'Phone Number',
+                      label: l10n.t('Phone Number'),
                       enabled: _isEditing,
                     ),
                     const SizedBox(height: 16),
@@ -503,7 +508,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Farm Name Field
                     CustomTextField(
                       controller: _farmNameController,
-                      label: 'Farm Name',
+                      label: l10n.t('Farm Name'),
                       icon: Icons.agriculture_outlined,
                       enabled: _isEditing,
                     ),
@@ -512,14 +517,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Save / Cancel Buttons
                     if (_isEditing) ...[
                       CustomButton.primary(
-                        text: 'Save Changes',
+                        text: l10n.t('Save Changes'),
                         onPressed: _isSaving ? null : _saveProfile,
                         isLoading: _isSaving,
                         size: CustomButtonSize.large,
                       ),
                       const SizedBox(height: 12),
                       CustomButton.secondary(
-                        text: 'Cancel',
+                        text: l10n.t('Cancel'),
                         onPressed: () {
                           _loadUserData();
                           setState(() => _isEditing = false);
@@ -598,7 +603,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: BoxDecoration(
                 color: AppColors.primary,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.backgroundDark, width: 3),
+                border: Border.all(color: ThemeColors.bg(context), width: 3),
               ),
               child: const Icon(
                 Icons.camera_alt,
@@ -620,9 +625,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Row(
         children: [
@@ -643,16 +648,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                 ),
               ],

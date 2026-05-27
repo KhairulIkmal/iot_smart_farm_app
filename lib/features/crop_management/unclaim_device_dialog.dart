@@ -131,7 +131,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: ThemeColors.surface(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -154,12 +154,12 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
             const SizedBox(height: 20),
 
             // Title
-            const Text(
+            Text(
               'Delete Crop?',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 8),
@@ -173,7 +173,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.backgroundDark,
+                  color: ThemeColors.bg(context),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -182,7 +182,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                     Icon(
                       Icons.developer_board,
                       size: 18,
-                      color: Colors.white.withOpacity(0.7),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.7),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -190,7 +190,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                       style: TextStyle(
                         fontSize: 14,
                         fontFamily: 'monospace',
-                        color: Colors.white.withOpacity(0.7),
+                        color: ThemeColors.textSecondary(context).withOpacity(0.7),
                       ),
                     ),
                     if (widget.cropType != null) ...[
@@ -199,7 +199,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                         width: 4,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
+                          color: ThemeColors.textSecondary(context).withOpacity(0.3),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -213,7 +213,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                         widget.cropType!,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(0.7),
+                          color: ThemeColors.textSecondary(context).withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -280,8 +280,8 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                           ? null
                           : () => Navigator.pop(context, false),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: AppColors.borderDark),
+                        foregroundColor: ThemeColors.textPrimary(context),
+                        side: BorderSide(color: ThemeColors.border(context)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -360,7 +360,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
             text,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.8),
+              color: ThemeColors.textPrimary(context).withOpacity(0.8),
             ),
           ),
         ),

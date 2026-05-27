@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 
+import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 import '../../../services/user_counter_service.dart';
 
@@ -311,8 +312,9 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
@@ -322,13 +324,13 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
           : Stack(
               children: [
                 // Full screen map
-                _buildMapSection(),
+                _buildMapSection(l10n),
 
                 // Top overlay with back button and search
-                _buildTopOverlay(),
+                _buildTopOverlay(l10n),
 
                 // Bottom location details sheet
-                _buildLocationDetailsSection(),
+                _buildLocationDetailsSection(l10n),
               ],
             ),
     );
@@ -337,7 +339,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   /// ------------------------------------------------
   /// TOP OVERLAY (Back button + Search bar + Title)
   /// ------------------------------------------------
-  Widget _buildTopOverlay() {
+  Widget _buildTopOverlay(AppLocalizations l10n) {
     return Positioned(
       top: 0,
       left: 0,
@@ -355,23 +357,23 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceDark,
+                        color: ThemeColors.surface(context),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderDark),
+                        border: Border.all(color: ThemeColors.border(context)),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: Colors.white,
+                        color: ThemeColors.icon(context),
                         size: 24,
                       ),
                     ),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Text(
-                        'Setup Location',
+                        l10n.t('Setup Location'),
                         style: TextStyle(
-                          color: Colors.white,
+                          color: ThemeColors.textPrimary(context),
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                         ),
@@ -419,7 +421,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                               fontSize: 14,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Search farm address or city...',
+                              hintText: l10n.t('Search farm address or city...'),
                               hintStyle: TextStyle(
                                 color: Colors.white.withOpacity(0.5),
                                 fontSize: 14,
@@ -549,7 +551,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   /// ------------------------------------------------
   /// MAP SECTION
   /// ------------------------------------------------
-  Widget _buildMapSection() {
+  Widget _buildMapSection(AppLocalizations l10n) {
     return Stack(
       children: [
         // OpenStreetMap
@@ -580,7 +582,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                   width: 80,
                   height: 100,
                   rotate: true,
-                  child: _buildCustomMarker(),
+                  child: _buildCustomMarker(l10n),
                 ),
               ],
             ),
@@ -660,7 +662,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   }
 
   /// Custom map marker with pin design
-  Widget _buildCustomMarker() {
+  Widget _buildCustomMarker(AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -685,8 +687,8 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Text(
-            'DRAG TO ADJUST',
+          child: Text(
+            l10n.t('DRAG TO ADJUST'),
             style: TextStyle(
               color: Colors.black,
               fontSize: 10,
@@ -702,7 +704,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
   /// ------------------------------------------------
   /// LOCATION DETAILS SECTION
   /// ------------------------------------------------
-  Widget _buildLocationDetailsSection() {
+  Widget _buildLocationDetailsSection(AppLocalizations l10n) {
     return Positioned(
       bottom: 0,
       left: 0,
@@ -710,7 +712,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
+          color: ThemeColors.surface(context),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
@@ -771,7 +773,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                                         ),
                                         const SizedBox(width: 10),
                                         Text(
-                                          'Fetching location...',
+                                          l10n.t('Fetching location...'),
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w600,
@@ -784,10 +786,10 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                                       _selectedAddress.isNotEmpty
                                           ? _selectedAddress.split(',').first
                                           : 'Green Valley Farm',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: ThemeColors.textPrimary(context),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -886,14 +888,14 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                           ),
                         )
-                      : const Row(
+                      : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_circle, size: 22),
-                            SizedBox(width: 8),
+                            const Icon(Icons.check_circle, size: 22),
+                            const SizedBox(width: 8),
                             Text(
-                              'Confirm Location',
-                              style: TextStyle(
+                              l10n.t('Confirm Location'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),

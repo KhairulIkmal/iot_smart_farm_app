@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 import '../../../services/notifications/notification_service.dart';
 import '../../../services/notifications/models/notification_model.dart';
@@ -103,7 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,6 +146,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // HEADER
   // ----------------------------------------------------------------
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Row(
@@ -154,25 +156,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Notifications',
+              l10n.t('Notifications'),
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
           ),
@@ -189,15 +191,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.archive_outlined,
                     color: AppColors.primary,
                     size: 18,
                   ),
                   const SizedBox(width: 4),
-                  const Text(
-                    'Clear all',
-                    style: TextStyle(
+                  Text(
+                    l10n.t('Clear all'),
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primary,
@@ -216,6 +218,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // FILTER TABS
   // ----------------------------------------------------------------
   Widget _buildFilterTabs(int selectedIndex) {
+    final l10n = AppLocalizations.of(context);
     return SizedBox(
       height: 40,
       child: ListView.separated(
@@ -243,10 +246,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.surfaceDark,
+                color: isSelected ? AppColors.primary : ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.borderDark,
+                  color: isSelected ? AppColors.primary : ThemeColors.border(context),
                 ),
               ),
               child: Row(
@@ -258,18 +261,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       size: 16,
                       color: isSelected
                           ? Colors.white
-                          : Colors.white.withOpacity(0.7),
+                          : ThemeColors.textSecondary(context).withOpacity(0.7),
                     ),
                     const SizedBox(width: 6),
                   ],
                   Text(
-                    filter,
+                    l10n.t(filter),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: isSelected
                           ? Colors.white
-                          : Colors.white.withOpacity(0.7),
+                          : ThemeColors.textSecondary(context).withOpacity(0.7),
                     ),
                   ),
                   if (count > 0) ...[
@@ -330,7 +333,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.5),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -348,6 +351,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // ARCHIVE TAB
   // ----------------------------------------------------------------
   Widget _buildArchiveTab() {
+    final l10n = AppLocalizations.of(context);
     if (_archived.isEmpty) {
       return Center(
         child: Column(
@@ -356,22 +360,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Icon(
               Icons.archive_outlined,
               size: 64,
-              color: Colors.white.withOpacity(0.2),
+              color: ThemeColors.textSecondary(context).withOpacity(0.2),
             ),
             const SizedBox(height: 16),
             Text(
-              'No archived notifications',
+              l10n.t('No archived notifications'),
               style: TextStyle(
                 fontSize: 18,
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Swipe left on a notification to archive it',
+              l10n.t('Swipe left on a notification to archive it'),
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.white.withOpacity(0.3),
+                color: ThemeColors.textSecondary(context).withOpacity(0.3),
               ),
             ),
           ],
@@ -396,7 +400,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.5),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -412,6 +416,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // SWIPEABLE NOTIFICATION CARD
   // ----------------------------------------------------------------
   Widget _buildSwipeableCard(NotificationModel n, {required bool isArchived}) {
+    final l10n = AppLocalizations.of(context);
     return Dismissible(
       key: ValueKey('${n.id}_${isArchived ? 'arch' : 'main'}'),
       direction: isArchived
@@ -425,7 +430,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               _snackBar(
                 Icons.unarchive_outlined,
-                'Moved back to inbox',
+                l10n.t('Moved back to inbox'),
                 AppColors.primary,
               ),
             );
@@ -435,20 +440,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               _snackBarWithUndo(
-                'Notification archived',
+                l10n.t('Notification archived'),
                 onUndo: () => _notificationService.unarchiveNotification(n.id),
+                l10n: l10n,
               ),
             );
           }
         }
         return false; // Firestore stream handles removal — no need to dismiss locally
       },
-      background: _buildSwipeBackground(isArchived),
-      child: _buildNotificationCard(n, isArchived: isArchived),
+      background: _buildSwipeBackground(isArchived, l10n),
+      child: _buildNotificationCard(n, isArchived: isArchived, l10n: l10n),
     );
   }
 
-  Widget _buildSwipeBackground(bool isArchived) {
+  Widget _buildSwipeBackground(bool isArchived, AppLocalizations l10n) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -469,7 +475,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            isArchived ? 'Unarchive' : 'Archive',
+            isArchived ? l10n.t('Unarchive') : l10n.t('Archive'),
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -484,6 +490,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget _buildNotificationCard(
     NotificationModel n, {
     required bool isArchived,
+    required AppLocalizations l10n,
   }) {
     return GestureDetector(
       onTap: () async {
@@ -495,12 +502,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: isArchived
-              ? AppColors.surfaceDark.withOpacity(0.6)
-              : AppColors.surfaceDark,
+              ? ThemeColors.surface(context).withOpacity(0.6)
+              : ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: n.isRead
-                ? AppColors.borderDark
+                ? ThemeColors.border(context)
                 : _severityColor(n.severity).withOpacity(0.3),
           ),
         ),
@@ -552,8 +559,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 color: isArchived
-                                    ? Colors.white.withOpacity(0.5)
-                                    : Colors.white,
+                                    ? ThemeColors.textSecondary(context).withOpacity(0.5)
+                                    : ThemeColors.textPrimary(context),
                               ),
                             ),
                           ),
@@ -564,7 +571,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 _formatTime(n.timestamp),
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.white.withOpacity(0.4),
+                                  color: ThemeColors.textSecondary(context).withOpacity(0.4),
                                 ),
                               ),
                               if (isArchived) ...[
@@ -575,14 +582,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
+                                    color: ThemeColors.textSecondary(context).withOpacity(0.08),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    'Archived',
+                                    l10n.t('Archived'),
                                     style: TextStyle(
                                       fontSize: 10,
-                                      color: Colors.white.withOpacity(0.4),
+                                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                                     ),
                                   ),
                                 ),
@@ -596,7 +603,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         n.message,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity(
+                          color: ThemeColors.textSecondary(context).withOpacity(
                             isArchived ? 0.4 : 0.7,
                           ),
                           height: 1.4,
@@ -610,14 +617,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             Icon(
                               Icons.swipe_left,
                               size: 14,
-                              color: Colors.white.withOpacity(0.2),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.2),
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'Swipe left to archive',
+                              l10n.t('Swipe left to archive'),
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.white.withOpacity(0.2),
+                                color: ThemeColors.textSecondary(context).withOpacity(0.2),
                               ),
                             ),
                           ],
@@ -638,6 +645,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // EMPTY STATE
   // ----------------------------------------------------------------
   Widget _buildEmpty(String filter) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -645,23 +653,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Icon(
             Icons.notifications_none,
             size: 64,
-            color: Colors.white.withOpacity(0.2),
+            color: ThemeColors.textSecondary(context).withOpacity(0.2),
           ),
           const SizedBox(height: 16),
           Text(
-            'No notifications',
+            l10n.t('No notifications'),
             style: TextStyle(
               fontSize: 18,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
           if (filter == 'All') ...[
             const SizedBox(height: 8),
             Text(
-              'Check Archive tab for past alerts',
+              l10n.t('Check Archive tab for past alerts'),
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.white.withOpacity(0.3),
+                color: ThemeColors.textSecondary(context).withOpacity(0.3),
               ),
             ),
           ],
@@ -689,7 +697,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  SnackBar _snackBarWithUndo(String msg, {required VoidCallback onUndo}) {
+  SnackBar _snackBarWithUndo(String msg, {required VoidCallback onUndo, required AppLocalizations l10n}) {
     return SnackBar(
       content: Row(
         children: [
@@ -698,12 +706,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Expanded(child: Text(msg)),
         ],
       ),
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: ThemeColors.surface(context),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       duration: const Duration(seconds: 4),
       action: SnackBarAction(
-        label: 'UNDO',
+        label: l10n.t('UNDO'),
         textColor: AppColors.primary,
         onPressed: onUndo,
       ),
@@ -714,13 +722,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // ACTIONS
   // ----------------------------------------------------------------
   Future<void> _markAllAsRead() async {
+    final l10n = AppLocalizations.of(context);
     final total = _notifications.length;
     if (total == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         _snackBar(
           Icons.info_outline,
           'No notifications to clear',
-          AppColors.surfaceDark,
+          ThemeColors.surface(context),
         ),
       );
       return;
@@ -732,7 +741,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _snackBar(
           Icons.archive_outlined,
           '$total notification${total > 1 ? 's' : ''} archived',
-          AppColors.surfaceDark,
+          ThemeColors.surface(context),
         ),
       );
     }

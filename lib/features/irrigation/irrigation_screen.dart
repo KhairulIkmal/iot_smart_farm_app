@@ -8,6 +8,7 @@ import 'dart:async';
 
 import '../../services/live_sensor_service.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../services/notifications/notification_service.dart';
 import '../../services/selected_crop_service.dart';
@@ -296,24 +297,25 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: Column(
           children: [
             // Header
-            _buildHeader(),
+            _buildHeader(l10n),
             const SizedBox(height: 16),
 
             // Tab Bar
-            _buildTabBar(),
+            _buildTabBar(l10n),
             const SizedBox(height: 20),
 
             // Tab Content
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: [_buildManualTab(), _buildAutoTab()],
+                children: [_buildManualTab(l10n), _buildAutoTab(l10n)],
               ),
             ),
           ],
@@ -325,7 +327,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   /// ------------------------------------------------
   /// HEADER
   /// ------------------------------------------------
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
@@ -334,12 +336,12 @@ class _IrrigationScreenState extends State<IrrigationScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Irrigation Control',
+              Text(
+                l10n.t('Irrigation Control'),
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                 ),
               ),
               GestureDetector(
@@ -354,15 +356,15 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceDark,
+                    color: ThemeColors.surface(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderDark),
+                    border: Border.all(color: ThemeColors.border(context)),
                   ),
                   child: Stack(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.notifications_outlined,
-                        color: Colors.white,
+                        color: ThemeColors.icon(context),
                         size: 22,
                       ),
                       if (_unreadCount > 0)
@@ -387,21 +389,21 @@ class _IrrigationScreenState extends State<IrrigationScreen>
           if (_selectedDeviceId != null && _cropDisplayName.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
-              'CONTROLLING',
+              l10n.t('CONTROLLING'),
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
                 letterSpacing: 1,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               _cropDisplayName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
           ],
@@ -413,26 +415,26 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   /// ------------------------------------------------
   /// TAB BAR
   /// ------------------------------------------------
-  Widget _buildTabBar() {
+  Widget _buildTabBar(AppLocalizations l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: TabBar(
           controller: _tabController,
           indicator: BoxDecoration(
-            color: AppColors.backgroundDark,
+            color: ThemeColors.bg(context),
             borderRadius: BorderRadius.circular(10),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withOpacity(0.4),
+          labelColor: ThemeColors.textPrimary(context),
+          unselectedLabelColor: ThemeColors.textSecondary(context).withOpacity(0.4),
           labelStyle: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -441,9 +443,9 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             fontSize: 15,
             fontWeight: FontWeight.w500,
           ),
-          tabs: const [
-            Tab(text: 'Manual'),
-            Tab(text: 'Auto'),
+          tabs: [
+            Tab(text: l10n.t('Manual')),
+            Tab(text: l10n.t('Auto')),
           ],
         ),
       ),
@@ -453,21 +455,21 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   /// ------------------------------------------------
   /// MANUAL TAB
   /// ------------------------------------------------
-  Widget _buildManualTab() {
+  Widget _buildManualTab(AppLocalizations l10n) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           // System Status Card (Live from RTDB)
-          _buildSystemStatusCard(),
+          _buildSystemStatusCard(l10n),
           const SizedBox(height: 24),
 
           // Pump Control
-          _buildPumpControl(),
+          _buildPumpControl(l10n),
           const SizedBox(height: 24),
 
           // Last Run & Tank Level (Live from RTDB)
-          _buildQuickStats(),
+          _buildQuickStats(l10n),
           const SizedBox(height: 24),
 
           // Warning Card
@@ -478,9 +480,9 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   }
 
   /// System Status with live connection from RTDB
-  Widget _buildSystemStatusCard() {
+  Widget _buildSystemStatusCard(AppLocalizations l10n) {
     if (_selectedDeviceId == null) {
-      return _buildNoDeviceCard();
+      return _buildNoDeviceCard(l10n);
     }
 
     final isConnected = _isConnected;
@@ -488,9 +490,9 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Row(
             children: [
@@ -535,12 +537,12 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'System Status',
+                    Text(
+                      l10n.t('System Status'),
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: ThemeColors.textPrimary(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -548,11 +550,11 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                       _isPumpActive
                           ? 'Pump Active • Flow: 12 L/min'
                           : isConnected
-                          ? 'System Ready'
-                          : 'Device Offline',
+                          ? l10n.t('System Ready')
+                          : l10n.t('Device Offline'),
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withOpacity(0.5),
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       ),
                     ),
                   ],
@@ -564,19 +566,19 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                 decoration: BoxDecoration(
                   color: _isPumpActive
                       ? AppColors.primary.withOpacity(0.1)
-                      : AppColors.surfaceDark,
+                      : ThemeColors.surface(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: _isPumpActive
                         ? AppColors.primary.withOpacity(0.3)
-                        : AppColors.borderDark,
+                        : ThemeColors.border(context),
                   ),
                 ),
                 child: Icon(
                   _isPumpActive ? Icons.water_drop : Icons.water_drop_outlined,
                   color: _isPumpActive
                       ? AppColors.primary
-                      : Colors.white.withOpacity(0.5),
+                      : ThemeColors.textSecondary(context).withOpacity(0.5),
                   size: 36,
                 ),
               ),
@@ -585,24 +587,24 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         );
   }
 
-  Widget _buildPumpControl() {
+  Widget _buildPumpControl(AppLocalizations l10n) {
     return Center(
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: Column(
           children: [
           Text(
-            _isPumpActive ? 'Pump Running' : 'System Ready',
+            _isPumpActive ? l10n.t('Pump Running') : l10n.t('System Ready'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.7),
+              color: ThemeColors.textSecondary(context).withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 24),
@@ -616,11 +618,11 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                 shape: BoxShape.circle,
                 color: _isPumpActive
                     ? AppColors.primary.withOpacity(0.2)
-                    : AppColors.backgroundDark,
+                    : ThemeColors.bg(context),
                 border: Border.all(
                   color: _isPumpActive
                       ? AppColors.primary
-                      : AppColors.borderDark,
+                      : ThemeColors.border(context),
                   width: 3,
                 ),
                 boxShadow: _isPumpActive
@@ -640,17 +642,17 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                 size: 48,
                 color: _isPumpActive
                     ? AppColors.primary
-                    : Colors.white.withOpacity(0.5),
+                    : ThemeColors.textSecondary(context).withOpacity(0.5),
               ),
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            _isPumpActive ? 'STOP' : 'START',
+            _isPumpActive ? l10n.t('STOP') : l10n.t('START'),
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: _isPumpActive ? AppColors.primary : Colors.white,
+              color: _isPumpActive ? AppColors.primary : ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -658,7 +660,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             'Tap to ${_isPumpActive ? 'stop' : 'activate'} main pump',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
         ],
@@ -668,7 +670,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   }
 
   /// Quick Stats with live data from RTDB
-  Widget _buildQuickStats() {
+  Widget _buildQuickStats(AppLocalizations l10n) {
     if (_selectedDeviceId == null) return const SizedBox.shrink();
 
     return Row(
@@ -678,18 +680,18 @@ class _IrrigationScreenState extends State<IrrigationScreen>
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Last Active',
+                  l10n.t('Last Active'),
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -698,15 +700,15 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     Icon(
                       Icons.schedule,
                       size: 18,
-                      color: Colors.white.withOpacity(0.7),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.7),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       _lastPumpOn,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: ThemeColors.textPrimary(context),
                       ),
                     ),
                   ],
@@ -723,22 +725,22 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             return Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isLow
                       ? AppColors.warning.withOpacity(0.5)
-                      : AppColors.borderDark,
+                      : ThemeColors.border(context),
                 ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Tank Level',
+                    l10n.t('Tank Level'),
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -755,7 +757,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: isLow ? AppColors.warning : Colors.white,
+                          color: isLow ? AppColors.warning : ThemeColors.textPrimary(context),
                         ),
                       ),
                     ],
@@ -799,58 +801,58 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   /// ------------------------------------------------
   /// AUTO TAB
   /// ------------------------------------------------
-  Widget _buildAutoTab() {
+  Widget _buildAutoTab(AppLocalizations l10n) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // System Status with live sensor values
-          _buildAutoSystemStatus(),
+          _buildAutoSystemStatus(l10n),
           const SizedBox(height: 24),
 
           // Automation Rules Title
-          const Text(
-            'Automation Rules',
+          Text(
+            l10n.t('Automation Rules'),
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Configure thresholds for auto-irrigation',
+            l10n.t('Configure thresholds for auto-irrigation'),
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
           const SizedBox(height: 20),
 
           // Soil Moisture Rule (with live value from RTDB)
-          _buildSoilMoistureRule(),
+          _buildSoilMoistureRule(l10n),
           const SizedBox(height: 16),
 
           // pH Level Rule (with live value from RTDB)
-          _buildPhLevelRule(),
+          _buildPhLevelRule(l10n),
           const SizedBox(height: 24),
 
           // Save Button
-          _buildSaveButton(),
+          _buildSaveButton(l10n),
           const SizedBox(height: 12),
 
           // Turn Off Auto Mode Button
-          _buildTurnOffAutoButton(),
+          _buildTurnOffAutoButton(l10n),
         ],
       ),
     );
   }
 
   /// Auto mode system status with live sensor values
-  Widget _buildAutoSystemStatus() {
+  Widget _buildAutoSystemStatus(AppLocalizations l10n) {
     if (_selectedDeviceId == null) {
-      return _buildNoDeviceCard();
+      return _buildNoDeviceCard(l10n);
     }
 
     final isConnected = _isConnected;
@@ -860,9 +862,9 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
             children: [
@@ -909,12 +911,12 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                           ],
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'System Status',
+                        Text(
+                          l10n.t('System Status'),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -924,7 +926,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                               : 'Auto Mode Active',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -953,7 +955,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundDark,
+                        color: ThemeColors.bg(context),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -966,10 +968,10 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                           const SizedBox(width: 8),
                           Text(
                             'Soil: $soil%',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                         ],
@@ -981,7 +983,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundDark,
+                        color: ThemeColors.bg(context),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -994,10 +996,10 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                           const SizedBox(width: 8),
                           Text(
                             'pH: ${ph.toStringAsFixed(1)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                         ],
@@ -1012,14 +1014,14 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   }
 
   /// Soil Moisture Rule with live current value
-  Widget _buildSoilMoistureRule() {
+  Widget _buildSoilMoistureRule(AppLocalizations l10n) {
     final currentSoil = _currentSoil;
     return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1039,21 +1041,21 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Soil Moisture',
+                          l10n.t('Soil Moisture'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
-                          'Target Range',
-                          style: TextStyle(
+                          l10n.t('Target Range'),
+                          style: const TextStyle(
                             fontSize: 13,
                             color: AppColors.textSecondaryDark,
                           ),
@@ -1066,17 +1068,17 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     children: [
                       Text(
                         '$currentSoil%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: ThemeColors.textPrimary(context),
                         ),
                       ),
                       Text(
-                        'Current',
+                        l10n.t('Current'),
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.5),
+                          color: ThemeColors.textSecondary(context).withOpacity(0.5),
                         ),
                       ),
                     ],
@@ -1086,7 +1088,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
               const SizedBox(height: 24),
               // Min Threshold
               _buildSliderRow(
-                label: 'Min Threshold',
+                label: l10n.t('Min Threshold'),
                 value: _soilMin,
                 min: 0,
                 max: 100,
@@ -1096,7 +1098,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
               const SizedBox(height: 16),
               // Max Threshold
               _buildSliderRow(
-                label: 'Max Threshold',
+                label: l10n.t('Max Threshold'),
                 value: _soilMax,
                 min: 0,
                 max: 100,
@@ -1109,15 +1111,15 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   }
 
   /// pH Level Rule with live current value
-  Widget _buildPhLevelRule() {
+  Widget _buildPhLevelRule(AppLocalizations l10n) {
     final currentPh = _currentPh;
 
     return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1137,21 +1139,21 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'pH Level',
+                          l10n.t('pH Level'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
-                          'Acidity Tolerance',
-                          style: TextStyle(
+                          l10n.t('Acidity Tolerance'),
+                          style: const TextStyle(
                             fontSize: 13,
                             color: AppColors.textSecondaryDark,
                           ),
@@ -1164,17 +1166,17 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                     children: [
                       Text(
                         '${currentPh.toStringAsFixed(1)} pH',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: ThemeColors.textPrimary(context),
                         ),
                       ),
                       Text(
-                        'Current',
+                        l10n.t('Current'),
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.5),
+                          color: ThemeColors.textSecondary(context).withOpacity(0.5),
                         ),
                       ),
                     ],
@@ -1190,11 +1192,11 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'MIN PH',
+                          l10n.t('MIN PH'),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1204,19 +1206,19 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.backgroundDark,
+                            color: ThemeColors.bg(context),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderDark),
+                            border: Border.all(color: ThemeColors.border(context)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 _phMin.toStringAsFixed(1),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: ThemeColors.textPrimary(context),
                                 ),
                               ),
                               Row(
@@ -1230,13 +1232,13 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceDark,
+                                        color: ThemeColors.surface(context),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.remove,
                                         size: 16,
-                                        color: Colors.white,
+                                        color: ThemeColors.icon(context),
                                       ),
                                     ),
                                   ),
@@ -1250,13 +1252,13 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceDark,
+                                        color: ThemeColors.surface(context),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.add,
                                         size: 16,
-                                        color: Colors.white,
+                                        color: ThemeColors.icon(context),
                                       ),
                                     ),
                                   ),
@@ -1274,11 +1276,11 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'MAX PH',
+                          l10n.t('MAX PH'),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1288,19 +1290,19 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.backgroundDark,
+                            color: ThemeColors.bg(context),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderDark),
+                            border: Border.all(color: ThemeColors.border(context)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 _phMax.toStringAsFixed(1),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                                  color: ThemeColors.textPrimary(context),
                                 ),
                               ),
                               Row(
@@ -1314,13 +1316,13 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceDark,
+                                        color: ThemeColors.surface(context),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.remove,
                                         size: 16,
-                                        color: Colors.white,
+                                        color: ThemeColors.icon(context),
                                       ),
                                     ),
                                   ),
@@ -1334,13 +1336,13 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceDark,
+                                        color: ThemeColors.surface(context),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.add,
                                         size: 16,
-                                        color: Colors.white,
+                                        color: ThemeColors.icon(context),
                                       ),
                                     ),
                                   ),
@@ -1377,7 +1379,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
               label,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.7),
+                color: ThemeColors.textSecondary(context).withOpacity(0.7),
               ),
             ),
             Text(
@@ -1394,7 +1396,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: color,
-            inactiveTrackColor: AppColors.borderDark,
+            inactiveTrackColor: ThemeColors.border(context),
             thumbColor: color,
             overlayColor: color.withOpacity(0.2),
             trackHeight: 6,
@@ -1405,7 +1407,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildSaveButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -1413,7 +1415,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         onPressed: _isSaving ? null : _saveIrrigationRules,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.backgroundDark,
+          foregroundColor: ThemeColors.bg(context),
           disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -1421,24 +1423,24 @@ class _IrrigationScreenState extends State<IrrigationScreen>
           elevation: 0,
         ),
         child: _isSaving
-            ? const SizedBox(
+            ? SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.backgroundDark,
+                    ThemeColors.bg(context),
                   ),
                 ),
               )
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 22),
-                  SizedBox(width: 8),
+                  const Icon(Icons.check_circle_outline, size: 22),
+                  const SizedBox(width: 8),
                   Text(
-                    'Apply to Auto-Irrigation',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    l10n.t('Apply to Auto-Irrigation'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -1446,7 +1448,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     );
   }
 
-  Widget _buildTurnOffAutoButton() {
+  Widget _buildTurnOffAutoButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -1468,14 +1470,14 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
                 ),
               )
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.power_settings_new, size: 22),
-                  SizedBox(width: 8),
+                  const Icon(Icons.power_settings_new, size: 22),
+                  const SizedBox(width: 8),
                   Text(
-                    'Turn Off Auto-Irrigation',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    l10n.t('Turn Off Auto-Irrigation'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -1485,6 +1487,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
   Future<void> _turnOffAutoMode() async {
     if (_selectedDeviceId == null) return;
+    final l10n = AppLocalizations.of(context);
 
     setState(() => _isSaving = true);
 
@@ -1495,14 +1498,14 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.power_settings_new, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Auto-irrigation turned off'),
+                Icon(Icons.power_settings_new, color: ThemeColors.icon(context)),
+                const SizedBox(width: 12),
+                Text(l10n.t('Auto-irrigation turned off')),
               ],
             ),
-            backgroundColor: AppColors.surfaceDark,
+            backgroundColor: ThemeColors.surface(context),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -1514,7 +1517,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Failed to turn off auto mode'),
+            content: Text(l10n.t('Failed to turn off auto mode')),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -1528,36 +1531,36 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     }
   }
 
-  Widget _buildNoDeviceCard() {
+  Widget _buildNoDeviceCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: [
           Icon(
             Icons.sensors_off,
             size: 48,
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Device Connected',
+          Text(
+            l10n.t('No Device Connected'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Claim a device to control irrigation',
+            l10n.t('Claim a device to control irrigation'),
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
         ],
@@ -1617,7 +1620,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
               children: [
                 Icon(
                   newPumpState ? Icons.check_circle : Icons.stop_circle,
-                  color: Colors.white,
+                  color: newPumpState ? Colors.white : ThemeColors.icon(context),
                 ),
                 const SizedBox(width: 12),
                 Text(newPumpState ? 'Pump activated' : 'Pump stopped'),
@@ -1625,7 +1628,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
             ),
             backgroundColor: newPumpState
                 ? AppColors.primary
-                : AppColors.surfaceDark,
+                : ThemeColors.surface(context),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),

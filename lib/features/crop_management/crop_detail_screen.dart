@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../services/selected_crop_service.dart';
 import '../navigation/main_navigation.dart';
@@ -140,8 +141,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: CustomScrollView(
         slivers: [
           _buildSliverAppBar(),
@@ -151,17 +153,17 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildCropInfoCard(),
+                  _buildCropInfoCard(l10n),
                   const SizedBox(height: 16),
-                  _buildDeviceStatusCard(),
+                  _buildDeviceStatusCard(l10n),
                   const SizedBox(height: 16),
-                  _buildSensorGrid(),
+                  _buildSensorGrid(l10n),
                   const SizedBox(height: 16),
                   if (_notes.isNotEmpty) ...[
-                    _buildNotesCard(),
+                    _buildNotesCard(l10n),
                     const SizedBox(height: 16),
                   ],
-                  _buildActionButtons(),
+                  _buildActionButtons(l10n),
                   const SizedBox(height: 32),
                 ],
               ),
@@ -179,7 +181,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
     return SliverAppBar(
       expandedHeight: 240,
       pinned: true,
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       leading: IconButton(
         icon: Container(
           padding: const EdgeInsets.all(6),
@@ -211,7 +213,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
           end: Alignment.bottomCenter,
           colors: [
             _getCropColor(_cropType).withOpacity(0.4),
-            AppColors.backgroundDark,
+            ThemeColors.bg(context),
           ],
         ),
       ),
@@ -228,7 +230,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
   /// ------------------------------------------------
   /// CROP INFO CARD
   /// ------------------------------------------------
-  Widget _buildCropInfoCard() {
+  Widget _buildCropInfoCard(AppLocalizations l10n) {
     final age = widget.plantingDate != null
         ? DateTime.now().difference(widget.plantingDate!.toDate())
         : null;
@@ -245,9 +247,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,9 +275,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Text(
-                      'ACTIVE',
-                      style: TextStyle(
+                    Text(
+                      l10n.t('ACTIVE'),
+                      style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: AppColors.primary,
@@ -290,10 +292,10 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
           const SizedBox(height: 12),
           Text(
             _cropType,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 4),
@@ -301,15 +303,15 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             _fieldName,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.6),
+              color: ThemeColors.textSecondary(context).withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildInfoChip(Icons.calendar_today, 'Age', ageText),
+              _buildInfoChip(Icons.calendar_today, l10n.t('Age'), ageText),
               const SizedBox(width: 12),
-              _buildInfoChip(Icons.memory, 'Device', widget.deviceId),
+              _buildInfoChip(Icons.memory, l10n.t('Device'), widget.deviceId),
             ],
           ),
         ],
@@ -322,7 +324,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.backgroundDark,
+          color: ThemeColors.bg(context),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -336,7 +338,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -345,9 +347,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             const SizedBox(height: 4),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
                 fontWeight: FontWeight.w600,
               ),
               overflow: TextOverflow.ellipsis,
@@ -361,16 +363,16 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
   /// ------------------------------------------------
   /// DEVICE STATUS CARD
   /// ------------------------------------------------
-  Widget _buildDeviceStatusCard() {
+  Widget _buildDeviceStatusCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _isOnline
               ? AppColors.primary.withOpacity(0.4)
-              : AppColors.borderDark,
+              : ThemeColors.border(context),
         ),
       ),
       child: Row(
@@ -398,7 +400,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isOnline ? 'Device Online' : 'Device Offline',
+                  _isOnline ? l10n.t('Device Online') : l10n.t('Device Offline'),
                   style: TextStyle(
                     color: _isOnline ? AppColors.primary : AppColors.error,
                     fontSize: 14,
@@ -406,9 +408,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                   ),
                 ),
                 Text(
-                  'Last seen: $_lastSeenText',
+                  '${l10n.t('Last seen:')} $_lastSeenText',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.4),
                     fontSize: 12,
                   ),
                 ),
@@ -419,7 +421,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             Icons.sensors,
             color: _isOnline
                 ? AppColors.primary
-                : Colors.white.withOpacity(0.3),
+                : ThemeColors.textSecondary(context).withOpacity(0.3),
             size: 22,
           ),
         ],
@@ -430,16 +432,16 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
   /// ------------------------------------------------
   /// SENSOR READINGS GRID
   /// ------------------------------------------------
-  Widget _buildSensorGrid() {
+  Widget _buildSensorGrid(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Sensor Readings',
+          l10n.t('Sensor Readings'),
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.white.withOpacity(0.9),
+            color: ThemeColors.textPrimary(context).withOpacity(0.9),
           ),
         ),
         const SizedBox(height: 12),
@@ -448,7 +450,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             Expanded(
               child: _buildSensorTile(
                 icon: Icons.water_drop,
-                label: 'Soil Moisture',
+                label: l10n.t('Soil Moisture'),
                 value: '$_soil%',
                 health: _soilHealth,
               ),
@@ -457,7 +459,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             Expanded(
               child: _buildSensorTile(
                 icon: Icons.science,
-                label: 'pH Level',
+                label: l10n.t('pH Level'),
                 value: _ph.toStringAsFixed(1),
                 health: _phHealth,
               ),
@@ -470,7 +472,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             Expanded(
               child: _buildSensorTile(
                 icon: Icons.thermostat,
-                label: 'Temperature',
+                label: l10n.t('Temperature'),
                 value: '$_temp°C',
                 health: 'ok',
               ),
@@ -479,7 +481,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             Expanded(
               child: _buildSensorTile(
                 icon: Icons.air,
-                label: 'Humidity',
+                label: l10n.t('Humidity'),
                 value: '$_humidity%',
                 health: 'ok',
               ),
@@ -487,7 +489,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        _buildWaterLevelTile(),
+        _buildWaterLevelTile(l10n),
       ],
     );
   }
@@ -509,12 +511,12 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isError
               ? AppColors.error.withOpacity(0.4)
-              : AppColors.borderDark,
+              : ThemeColors.border(context),
         ),
       ),
       child: Column(
@@ -538,7 +540,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: _isOnline ? Colors.white : Colors.white.withOpacity(0.4),
+              color: _isOnline ? ThemeColors.textPrimary(context) : ThemeColors.textSecondary(context).withOpacity(0.4),
             ),
           ),
           const SizedBox(height: 2),
@@ -546,7 +548,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
         ],
@@ -554,7 +556,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
     );
   }
 
-  Widget _buildWaterLevelTile() {
+  Widget _buildWaterLevelTile(AppLocalizations l10n) {
     final isError = _waterHealth == 'error';
     final isWarning = _waterHealth == 'warning';
     final statusColor = isError
@@ -566,12 +568,12 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isError
               ? AppColors.error.withOpacity(0.4)
-              : AppColors.borderDark,
+              : ThemeColors.border(context),
         ),
       ),
       child: Row(
@@ -586,10 +588,10 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Water Tank',
+                      l10n.t('Water Tank'),
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withOpacity(0.6),
+                        color: ThemeColors.textSecondary(context).withOpacity(0.6),
                       ),
                     ),
                     Text(
@@ -598,8 +600,8 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: _isOnline
-                            ? Colors.white
-                            : Colors.white.withOpacity(0.4),
+                            ? ThemeColors.textPrimary(context)
+                            : ThemeColors.textSecondary(context).withOpacity(0.4),
                       ),
                     ),
                   ],
@@ -609,7 +611,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: _waterLevel / 100,
-                    backgroundColor: AppColors.backgroundDark,
+                    backgroundColor: ThemeColors.bg(context),
                     valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                     minHeight: 6,
                   ),
@@ -625,14 +627,14 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
   /// ------------------------------------------------
   /// NOTES CARD
   /// ------------------------------------------------
-  Widget _buildNotesCard() {
+  Widget _buildNotesCard(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,11 +644,11 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
               const Icon(Icons.notes, color: AppColors.primary, size: 18),
               const SizedBox(width: 8),
               Text(
-                'Notes',
+                l10n.t('Notes'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.7),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.7),
                 ),
               ),
             ],
@@ -656,7 +658,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             _notes,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.85),
+              color: ThemeColors.textPrimary(context).withOpacity(0.85),
               height: 1.5,
             ),
           ),
@@ -668,7 +670,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
   /// ------------------------------------------------
   /// ACTION BUTTONS
   /// ------------------------------------------------
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(AppLocalizations l10n) {
     return Column(
       children: [
         // Monitor Button
@@ -678,13 +680,13 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
           child: ElevatedButton.icon(
             onPressed: _openMonitoring,
             icon: const Icon(Icons.monitor_heart_outlined, size: 20),
-            label: const Text(
-              'Open Monitoring',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            label: Text(
+              l10n.t('Open Monitoring'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.backgroundDark,
+              foregroundColor: ThemeColors.bg(context),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -702,13 +704,13 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _openEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text(
-                    'Edit',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  label: Text(
+                    l10n.t('Edit'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: AppColors.borderDark),
+                    foregroundColor: ThemeColors.textPrimary(context),
+                    side: BorderSide(color: ThemeColors.border(context)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -724,9 +726,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _openDelete,
                   icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text(
-                    'Delete',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  label: Text(
+                    l10n.t('Delete'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,

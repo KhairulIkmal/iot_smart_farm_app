@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../services/live_sensor_service.dart';
 import '../../services/selected_crop_service.dart';
@@ -199,22 +200,23 @@ class _SensorsScreenState extends State<SensorsScreen> {
     setState(() => _isRefreshing = false);
   }
 
-  String _getTimeAgo() {
+  String _getTimeAgo(AppLocalizations l10n) {
     final diff = DateTime.now().difference(_lastUpdated);
-    if (diff.inSeconds < 60) return 'Updated just now';
+    if (diff.inSeconds < 60) return l10n.t('Updated just now');
     if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
     return 'Updated ${diff.inHours}h ago';
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshData,
           color: AppColors.primary,
-          backgroundColor: AppColors.surfaceDark,
+          backgroundColor: ThemeColors.surface(context),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
@@ -222,21 +224,21 @@ class _SensorsScreenState extends State<SensorsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildHeader(),
+                _buildHeader(l10n),
                 const SizedBox(height: 24),
 
                 // Sensor Cards
                 if (_selectedDeviceId != null) ...[
-                  _buildSoilMoistureCard(),
+                  _buildSoilMoistureCard(l10n),
                   const SizedBox(height: 16),
-                  _buildAirConditionsCard(),
+                  _buildAirConditionsCard(l10n),
                   const SizedBox(height: 16),
-                  _buildWaterTankCard(),
+                  _buildWaterTankCard(l10n),
                   const SizedBox(height: 16),
-                  _buildSoilPhCard(),
+                  _buildSoilPhCard(l10n),
                   const SizedBox(height: 24),
                 ] else
-                  _buildNoDeviceCard(),
+                  _buildNoDeviceCard(l10n),
               ],
             ),
           ),
@@ -248,7 +250,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// ------------------------------------------------
   /// HEADER
   /// ------------------------------------------------
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -258,20 +260,20 @@ class _SensorsScreenState extends State<SensorsScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Sensors',
+                Text(
+                  l10n.t('Sensors'),
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Real-time monitoring',
+                  l10n.t('Real-time monitoring'),
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   ),
                 ),
               ],
@@ -282,9 +284,9 @@ class _SensorsScreenState extends State<SensorsScreen> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
+                  color: ThemeColors.surface(context),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderDark),
+                  border: Border.all(color: ThemeColors.border(context)),
                 ),
                 child: _isRefreshing
                     ? const SizedBox(
@@ -305,21 +307,21 @@ class _SensorsScreenState extends State<SensorsScreen> {
         const SizedBox(height: 12),
         if (_selectedDeviceId != null && _cropDisplayName.isNotEmpty) ...[
           Text(
-            'MONITORING',
+            l10n.t('MONITORING'),
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
               letterSpacing: 1,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             _cropDisplayName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
         ],
@@ -332,10 +334,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/soil
   /// RTDB: sensors/{deviceId}/sensorHealth/soil
   /// ------------------------------------------------
-  Widget _buildSoilMoistureCard() {
+  Widget _buildSoilMoistureCard(AppLocalizations l10n) {
     final soilMoisture = _soil;
     final hasError = _soilHealth == 'error';
-    final status = _getSoilStatus(soilMoisture);
+    final status = _getSoilStatus(soilMoisture, l10n);
     final statusColor = _getSoilStatusColor(soilMoisture);
 
     return GestureDetector(
@@ -353,12 +355,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: hasError
                     ? AppColors.error.withOpacity(0.5)
-                    : AppColors.borderDark,
+                    : ThemeColors.border(context),
               ),
             ),
             child: Column(
@@ -386,19 +388,19 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Soil Moisture',
+                        Text(
+                          l10n.t('Soil Moisture'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
                           'Sensor ID: ${_selectedDeviceId ?? "N/A"}',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -412,7 +414,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: hasError ? AppColors.error : Colors.white,
+                          color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
                         ),
                       ),
                       Container(
@@ -442,10 +444,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
 
               // Last 6 Hours Label
               Text(
-                'Last 6 Hours',
+                l10n.t('Last 6 Hours'),
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.white.withOpacity(0.5),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
                 ),
               ),
               const SizedBox(height: 12),
@@ -459,17 +461,17 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '6h ago',
+                    l10n.t('6h ago'),
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.4),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                     ),
                   ),
                   Text(
-                    'Now',
+                    l10n.t('Now'),
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.4),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                     ),
                   ),
                 ],
@@ -481,24 +483,24 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _getTimeAgo(),
+                    _getTimeAgo(l10n),
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                   Row(
-                    children: const [
+                    children: [
                       Text(
-                        'Details',
-                        style: TextStyle(
+                        l10n.t('Details'),
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
-                      SizedBox(width: 4),
-                      Icon(
+                      const SizedBox(width: 4),
+                      const Icon(
                         Icons.chevron_right,
                         color: AppColors.primary,
                         size: 20,
@@ -518,10 +520,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/temp
   /// RTDB: sensors/{deviceId}/humidity
   /// ------------------------------------------------
-  Widget _buildAirConditionsCard() {
+  Widget _buildAirConditionsCard(AppLocalizations l10n) {
     final temp = _temp;
     final humidity = _humidity;
-    final tempStatus = _getTempStatus(temp);
+    final tempStatus = _getTempStatus(temp, l10n);
     final tempStatusColor = _getTempStatusColor(temp);
 
     return GestureDetector(
@@ -539,9 +541,9 @@ class _SensorsScreenState extends State<SensorsScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,19 +568,19 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Air Conditions',
+                        Text(
+                          l10n.t('Air Conditions'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
                           'Greenhouse 1',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -589,10 +591,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     children: [
                       Text(
                         '$temp°C',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: ThemeColors.textPrimary(context),
                         ),
                       ),
                       Container(
@@ -626,26 +628,26 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundDark,
+                        color: ThemeColors.bg(context),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Temperature',
+                            l10n.t('Temperature'),
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.5),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             '$temp°C',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                         ],
@@ -657,26 +659,26 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundDark,
+                        color: ThemeColors.bg(context),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Humidity',
+                            l10n.t('Humidity'),
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.5),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             '$humidity%',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                         ],
@@ -692,24 +694,24 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _getTimeAgo(),
+                    _getTimeAgo(l10n),
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                   Row(
-                    children: const [
+                    children: [
                       Text(
-                        'History',
-                        style: TextStyle(
+                        l10n.t('History'),
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
-                      SizedBox(width: 4),
-                      Icon(
+                      const SizedBox(width: 4),
+                      const Icon(
                         Icons.chevron_right,
                         color: AppColors.primary,
                         size: 20,
@@ -729,7 +731,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/waterLevel
   /// RTDB: sensors/{deviceId}/sensorHealth/waterLevel
   /// ------------------------------------------------
-  Widget _buildWaterTankCard() {
+  Widget _buildWaterTankCard(AppLocalizations l10n) {
     final waterLevel = _waterLevel;
     final hasError = _waterHealth == 'error';
     final isLow = waterLevel < 30 && !hasError;
@@ -749,12 +751,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: hasError || isLow
                     ? AppColors.error.withOpacity(0.5)
-                    : AppColors.borderDark,
+                    : ThemeColors.border(context),
               ),
             ),
             child: Column(
@@ -784,19 +786,19 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Main Tank',
+                        Text(
+                          l10n.t('Main Tank'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
-                          'Capacity: 5000L',
+                          l10n.t('Capacity: 5000L'),
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -812,7 +814,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
                           fontWeight: FontWeight.bold,
                           color: hasError || isLow
                               ? AppColors.error
-                              : Colors.white,
+                              : ThemeColors.textPrimary(context),
                         ),
                       ),
                       Container(
@@ -830,10 +832,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
                         ),
                         child: Text(
                           hasError
-                              ? 'Sensor Error'
+                              ? l10n.t('Sensor Error')
                               : isLow
-                              ? 'Low Level'
-                              : 'Normal',
+                              ? l10n.t('Low Level')
+                              : l10n.t('Normal'),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -851,10 +853,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
 
               // Usage Trend
               Text(
-                'Usage Trend',
+                l10n.t('Usage Trend'),
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.white.withOpacity(0.5),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
                 ),
               ),
               const SizedBox(height: 12),
@@ -868,7 +870,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isLow ? 'Requires Refill' : 'Level OK',
+                    isLow ? l10n.t('Requires Refill') : l10n.t('Level OK'),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -876,17 +878,17 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     ),
                   ),
                   Row(
-                    children: const [
+                    children: [
                       Text(
-                        'Alerts',
-                        style: TextStyle(
+                        l10n.t('Alerts'),
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
-                      SizedBox(width: 4),
-                      Icon(
+                      const SizedBox(width: 4),
+                      const Icon(
                         Icons.chevron_right,
                         color: AppColors.primary,
                         size: 20,
@@ -906,10 +908,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// RTDB: sensors/{deviceId}/ph
   /// RTDB: sensors/{deviceId}/sensorHealth/ph
   /// ------------------------------------------------
-  Widget _buildSoilPhCard() {
+  Widget _buildSoilPhCard(AppLocalizations l10n) {
     final ph = _ph;
     final hasError = _phHealth == 'error';
-    final status = _getPhStatus(ph);
+    final status = _getPhStatus(ph, l10n);
     final statusColor = _getPhStatusColor(ph);
 
     return GestureDetector(
@@ -927,12 +929,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: hasError
                     ? AppColors.error.withOpacity(0.5)
-                    : AppColors.borderDark,
+                    : ThemeColors.border(context),
               ),
             ),
             child: Column(
@@ -960,19 +962,19 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Soil pH',
+                        Text(
+                          l10n.t('Soil pH'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
-                          'Zone A',
+                          l10n.t('Zone A'),
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -986,7 +988,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: hasError ? AppColors.error : Colors.white,
+                          color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
                         ),
                       ),
                       Container(
@@ -1021,17 +1023,17 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Acidic',
+                    l10n.t('Acidic'),
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.4),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                     ),
                   ),
                   Text(
-                    'Alkaline',
+                    l10n.t('Alkaline'),
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.4),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                     ),
                   ),
                 ],
@@ -1043,24 +1045,24 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _getTimeAgo(),
+                    _getTimeAgo(l10n),
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                   Row(
-                    children: const [
+                    children: [
                       Text(
-                        'Analyze',
-                        style: TextStyle(
+                        l10n.t('Analyze'),
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
-                      SizedBox(width: 4),
-                      Icon(
+                      const SizedBox(width: 4),
+                      const Icon(
                         Icons.chevron_right,
                         color: AppColors.primary,
                         size: 20,
@@ -1103,7 +1105,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   height: 50,
                   decoration: BoxDecoration(
-                    color: AppColors.borderDark.withOpacity(0.3),
+                    color: ThemeColors.border(context).withOpacity(0.3),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1160,7 +1162,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   height: 50,
                   decoration: BoxDecoration(
-                    color: AppColors.borderDark.withOpacity(0.3),
+                    color: ThemeColors.border(context).withOpacity(0.3),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1218,9 +1220,9 @@ class _SensorsScreenState extends State<SensorsScreen> {
                 width: 4,
                 height: 12,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                   borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: AppColors.backgroundDark, width: 1),
+                  border: Border.all(color: ThemeColors.bg(context), width: 1),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.3),
@@ -1236,36 +1238,36 @@ class _SensorsScreenState extends State<SensorsScreen> {
     );
   }
 
-  Widget _buildNoDeviceCard() {
+  Widget _buildNoDeviceCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: [
           Icon(
             Icons.sensors_off,
             size: 48,
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Device Connected',
+          Text(
+            l10n.t('No Device Connected'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Claim a device to view sensor data',
+            l10n.t('Claim a device to view sensor data'),
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
         ],
@@ -1276,11 +1278,11 @@ class _SensorsScreenState extends State<SensorsScreen> {
   /// ------------------------------------------------
   /// STATUS HELPERS
   /// ------------------------------------------------
-  String _getSoilStatus(int value) {
-    if (value < 30) return 'Low';
-    if (value > 80) return 'High';
-    if (value >= 50 && value <= 70) return 'Optimal';
-    return 'Normal';
+  String _getSoilStatus(int value, AppLocalizations l10n) {
+    if (value < 30) return l10n.t('Low');
+    if (value > 80) return l10n.t('High');
+    if (value >= 50 && value <= 70) return l10n.t('Optimal');
+    return l10n.t('Normal');
   }
 
   Color _getSoilStatusColor(int value) {
@@ -1290,11 +1292,11 @@ class _SensorsScreenState extends State<SensorsScreen> {
     return AppColors.primary;
   }
 
-  String _getTempStatus(int value) {
-    if (value < 15) return 'Cold';
-    if (value > 35) return 'Hot';
-    if (value > 28) return 'Warm';
-    return 'Normal';
+  String _getTempStatus(int value, AppLocalizations l10n) {
+    if (value < 15) return l10n.t('Cold');
+    if (value > 35) return l10n.t('Hot');
+    if (value > 28) return l10n.t('Normal');
+    return l10n.t('Normal');
   }
 
   Color _getTempStatusColor(int value) {
@@ -1304,10 +1306,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
     return AppColors.primary;
   }
 
-  String _getPhStatus(double value) {
-    if (value < 5.5) return 'Acidic';
-    if (value > 7.5) return 'Alkaline';
-    return 'Neutral';
+  String _getPhStatus(double value, AppLocalizations l10n) {
+    if (value < 5.5) return l10n.t('Acidic');
+    if (value > 7.5) return l10n.t('Alkaline');
+    return l10n.t('Neutral');
   }
 
   Color _getPhStatusColor(double value) {

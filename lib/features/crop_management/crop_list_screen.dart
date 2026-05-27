@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../auth/auth_service.dart';
 import '../../services/selected_crop_service.dart';
@@ -37,8 +38,9 @@ class _CropListScreenState extends State<CropListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -46,19 +48,19 @@ class _CropListScreenState extends State<CropListScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
-              _buildHeader(),
+              _buildHeader(l10n),
               const SizedBox(height: 20),
 
               // Stats Cards
-              _buildStatsCards(),
+              _buildStatsCards(l10n),
               const SizedBox(height: 24),
 
               // Available Devices Section
-              _buildAvailableDevicesSection(),
+              _buildAvailableDevicesSection(l10n),
               const SizedBox(height: 24),
 
               // My Crops Section
-              _buildMyCropsSection(),
+              _buildMyCropsSection(l10n),
               const SizedBox(height: 24),
             ],
           ),
@@ -70,7 +72,7 @@ class _CropListScreenState extends State<CropListScreen> {
   /// ------------------------------------------------
   /// HEADER
   /// ------------------------------------------------
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -82,9 +84,9 @@ class _CropListScreenState extends State<CropListScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceDark,
+                    color: ThemeColors.surface(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderDark),
+                    border: Border.all(color: ThemeColors.border(context)),
                   ),
                   child: const Icon(
                     Icons.arrow_back,
@@ -94,12 +96,12 @@ class _CropListScreenState extends State<CropListScreen> {
                 ),
               ),
             if (widget.showBackButton) const SizedBox(width: 12),
-            const Text(
-              'Crop Management',
+            Text(
+              l10n.t('Crop Management'),
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
           ],
@@ -110,9 +112,9 @@ class _CropListScreenState extends State<CropListScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
               child: const Icon(
                 Icons.logout,
@@ -128,7 +130,7 @@ class _CropListScreenState extends State<CropListScreen> {
   /// ------------------------------------------------
   /// STATS CARDS (Active Plots & Available Devices)
   /// ------------------------------------------------
-  Widget _buildStatsCards() {
+  Widget _buildStatsCards(AppLocalizations l10n) {
     final user = _auth.currentUser;
 
     return Row(
@@ -146,7 +148,7 @@ class _CropListScreenState extends State<CropListScreen> {
               return _buildStatCard(
                 icon: Icons.check_circle_outline,
                 iconColor: AppColors.primary,
-                label: 'ACTIVE',
+                label: l10n.t('ACTIVE'),
                 value: '$count Plots',
                 backgroundColor: AppColors.primary.withOpacity(0.15),
               );
@@ -166,9 +168,9 @@ class _CropListScreenState extends State<CropListScreen> {
               return _buildStatCard(
                 icon: Icons.sensors,
                 iconColor: AppColors.primary,
-                label: 'DEVICES',
-                value: '$count Available',
-                backgroundColor: AppColors.surfaceDark,
+                label: l10n.t('DEVICES'),
+                value: '$count ${l10n.t('Available')}',
+                backgroundColor: ThemeColors.surface(context),
               );
             },
           ),
@@ -189,7 +191,7 @@ class _CropListScreenState extends State<CropListScreen> {
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,7 +205,7 @@ class _CropListScreenState extends State<CropListScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.7),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.7),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -212,10 +214,10 @@ class _CropListScreenState extends State<CropListScreen> {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
         ],
@@ -226,19 +228,19 @@ class _CropListScreenState extends State<CropListScreen> {
   /// ------------------------------------------------
   /// AVAILABLE DEVICES SECTION
   /// ------------------------------------------------
-  Widget _buildAvailableDevicesSection() {
+  Widget _buildAvailableDevicesSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Available Devices',
+            Text(
+              l10n.t('Available Devices'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             Container(
@@ -247,8 +249,8 @@ class _CropListScreenState extends State<CropListScreen> {
                 color: AppColors.primary.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
-                'New Found',
+              child: Text(
+                l10n.t('New Found'),
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -270,7 +272,7 @@ class _CropListScreenState extends State<CropListScreen> {
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return _buildEmptyDevicesCard();
+              return _buildEmptyDevicesCard(l10n);
             }
 
             final devices = snapshot.data!.docs;
@@ -278,7 +280,7 @@ class _CropListScreenState extends State<CropListScreen> {
               children: devices.map((device) {
                 final deviceId = device.id;
 
-                return _buildDeviceCard(deviceId: deviceId);
+                return _buildDeviceCard(deviceId: deviceId, l10n: l10n);
               }).toList(),
             );
           },
@@ -289,6 +291,7 @@ class _CropListScreenState extends State<CropListScreen> {
 
   Widget _buildDeviceCard({
     required String deviceId,
+    required AppLocalizations l10n,
   }) {
     return StreamBuilder<DatabaseEvent>(
       stream: _rtdb.ref('sensors/$deviceId/live/lastSeen').onValue.asBroadcastStream(),
@@ -306,13 +309,13 @@ class _CropListScreenState extends State<CropListScreen> {
           isOnline = diff.inSeconds < 10;
 
           if (isOnline) {
-            statusText = 'Online';
+            statusText = l10n.t('Online');
             statusColor = AppColors.primary;
           } else if (diff.inMinutes < 5) {
-            statusText = 'Weak Signal';
+            statusText = l10n.t('Weak Signal');
             statusColor = AppColors.warning;
           } else {
-            statusText = 'No Signal';
+            statusText = l10n.t('No Signal');
             statusColor = AppColors.error;
           }
         }
@@ -321,9 +324,9 @@ class _CropListScreenState extends State<CropListScreen> {
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Row(
             children: [
@@ -332,7 +335,7 @@ class _CropListScreenState extends State<CropListScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: AppColors.backgroundDark,
+                  color: ThemeColors.bg(context),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.memory, color: AppColors.primary, size: 24),
@@ -345,10 +348,10 @@ class _CropListScreenState extends State<CropListScreen> {
                   children: [
                     Text(
                       deviceId,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: ThemeColors.textPrimary(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -364,7 +367,7 @@ class _CropListScreenState extends State<CropListScreen> {
                           statusText,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -377,16 +380,16 @@ class _CropListScreenState extends State<CropListScreen> {
                 onPressed: () => _navigateToClaimDevice(deviceId),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.backgroundDark,
+                  foregroundColor: ThemeColors.bg(context),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  'Assign',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                child: Text(
+                  l10n.t('Assign'),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -396,19 +399,19 @@ class _CropListScreenState extends State<CropListScreen> {
     );
   }
 
-  Widget _buildEmptyDevicesCard() {
+  Widget _buildEmptyDevicesCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Row(
         children: [
           Icon(
             Icons.devices_other,
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
             size: 32,
           ),
           const SizedBox(width: 16),
@@ -416,20 +419,20 @@ class _CropListScreenState extends State<CropListScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'No Devices Available',
+                Text(
+                  l10n.t('No Devices Available'),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'All ESP32 devices are currently assigned',
+                  l10n.t('All ESP32 devices are currently assigned'),
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   ),
                 ),
               ],
@@ -443,7 +446,7 @@ class _CropListScreenState extends State<CropListScreen> {
   /// ------------------------------------------------
   /// MY CROPS SECTION
   /// ------------------------------------------------
-  Widget _buildMyCropsSection() {
+  Widget _buildMyCropsSection(AppLocalizations l10n) {
     final user = _auth.currentUser;
 
     return Column(
@@ -452,20 +455,20 @@ class _CropListScreenState extends State<CropListScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'My Crops',
+            Text(
+              l10n.t('My Crops'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             TextButton(
               onPressed: () {
                 // TODO: Navigate to all crops view
               },
-              child: const Text(
-                'View All',
+              child: Text(
+                l10n.t('View All'),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -488,7 +491,7 @@ class _CropListScreenState extends State<CropListScreen> {
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return _buildEmptyCropsCard();
+              return _buildEmptyCropsCard(l10n);
             }
 
             final crops = snapshot.data!.docs;
@@ -511,6 +514,7 @@ class _CropListScreenState extends State<CropListScreen> {
                   fieldName: fieldName,
                   notes: notes,
                   imageUrl: imageUrl,
+                  l10n: l10n,
                 );
               }).toList(),
             );
@@ -528,6 +532,7 @@ class _CropListScreenState extends State<CropListScreen> {
     required String fieldName,
     required String notes,
     String? imageUrl,
+    required AppLocalizations l10n,
   }) {
     return GestureDetector(
       onTap: () => _openCropDetail(
@@ -543,7 +548,7 @@ class _CropListScreenState extends State<CropListScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -574,8 +579,8 @@ class _CropListScreenState extends State<CropListScreen> {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        AppColors.backgroundDark.withOpacity(0.9),
-                        AppColors.backgroundDark,
+                        ThemeColors.bg(context).withOpacity(0.9),
+                        ThemeColors.bg(context),
                       ],
                     ),
                   ),
@@ -604,9 +609,9 @@ class _CropListScreenState extends State<CropListScreen> {
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Text(
-                              'MONITORING',
-                              style: TextStyle(
+                            Text(
+                              l10n.t('MONITORING'),
+                              style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.primary,
@@ -628,10 +633,10 @@ class _CropListScreenState extends State<CropListScreen> {
                               children: [
                                 Text(
                                   '$cropType - $fieldName',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                    color: ThemeColors.textPrimary(context),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -661,9 +666,9 @@ class _CropListScreenState extends State<CropListScreen> {
                               color: Colors.black26,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.arrow_forward_ios,
-                              color: Colors.white,
+                              color: ThemeColors.icon(context),
                               size: 16,
                             ),
                           ),
@@ -688,7 +693,7 @@ class _CropListScreenState extends State<CropListScreen> {
           end: Alignment.bottomCenter,
           colors: [
             _getCropColor(cropType).withOpacity(0.3),
-            AppColors.backgroundDark,
+            ThemeColors.bg(context),
           ],
         ),
       ),
@@ -706,37 +711,37 @@ class _CropListScreenState extends State<CropListScreen> {
     );
   }
 
-  Widget _buildEmptyCropsCard() {
+  Widget _buildEmptyCropsCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: [
           Icon(
             Icons.eco_outlined,
             size: 48,
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Crops Yet',
+          Text(
+            l10n.t('No Crops Yet'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Assign an ESP32 device above to start\nmonitoring your first crop',
+            l10n.t('Assign an ESP32 device above to start\nmonitoring your first crop'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
               height: 1.5,
             ),
           ),
@@ -749,9 +754,9 @@ class _CropListScreenState extends State<CropListScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: const Center(
         child: CircularProgressIndicator(
@@ -806,22 +811,23 @@ class _CropListScreenState extends State<CropListScreen> {
   }
 
   Future<void> _handleLogout() async {
+    final l10n = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceDark,
+        backgroundColor: ThemeColors.surface(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Logout', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Are you sure you want to logout?',
-          style: TextStyle(color: AppColors.textSecondaryDark),
+        title: Text('Logout', style: TextStyle(color: ThemeColors.textPrimary(context))),
+        content: Text(
+          l10n.t('Are you sure you want to logout?'),
+          style: const TextStyle(color: AppColors.textSecondaryDark),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondaryDark),
+            child: Text(
+              l10n.t('Cancel'),
+              style: const TextStyle(color: AppColors.textSecondaryDark),
             ),
           ),
           TextButton(

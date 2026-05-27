@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../services/crop_counter_service.dart';
 
@@ -206,10 +207,11 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -218,21 +220,21 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Assign Device',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Assign Device'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
       ),
       body: _isCheckingDevice
@@ -249,17 +251,17 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Device Information Card (READ-ONLY)
-                    _buildDeviceInfoCard(),
+                    _buildDeviceInfoCard(l10n),
                     const SizedBox(height: 24),
 
                     // Crop Selection (REQUIRED)
                     _buildSectionTitle('Crop Type'),
                     const SizedBox(height: 4),
                     Text(
-                      'Select the crop you will grow with this device',
+                      l10n.t('Select the crop you will grow with this device'),
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withOpacity(0.5),
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -267,30 +269,30 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                     const SizedBox(height: 24),
 
                     // Optional Metadata
-                    _buildSectionTitle('Field Details (Optional)'),
+                    _buildSectionTitle(l10n.t('Field Details (Optional)')),
                     const SizedBox(height: 12),
                     _buildTextField(
                       controller: _fieldNameController,
                       label: 'Field Name',
-                      hint: 'e.g., Greenhouse A, Field 1',
+                      hint: l10n.t('e.g., Greenhouse A, Field 1'),
                       icon: Icons.landscape_outlined,
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
                       controller: _notesController,
                       label: 'Notes',
-                      hint: 'Optional notes about this crop',
+                      hint: l10n.t('Optional notes about this crop'),
                       icon: Icons.notes_outlined,
                       maxLines: 3,
                     ),
                     const SizedBox(height: 32),
 
                     // Info Card
-                    _buildInfoCard(),
+                    _buildInfoCard(l10n),
                     const SizedBox(height: 24),
 
                     // Claim Button
-                    _buildClaimButton(),
+                    _buildClaimButton(l10n),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -302,13 +304,13 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   /// ------------------------------------------------
   /// DEVICE INFORMATION CARD (READ-ONLY)
   /// ------------------------------------------------
-  Widget _buildDeviceInfoCard() {
+  Widget _buildDeviceInfoCard(AppLocalizations l10n) {
     final isAssigned = _deviceStatus == 'assigned';
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isAssigned
@@ -340,11 +342,11 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.deviceName ?? 'ESP32 Controller',
-                      style: const TextStyle(
+                      widget.deviceName ?? l10n.t('ESP32 Controller'),
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: ThemeColors.textPrimary(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -352,7 +354,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                       widget.deviceId,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withOpacity(0.5),
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -363,7 +365,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
           ),
           const SizedBox(height: 16),
           // Divider
-          Divider(color: AppColors.borderDark, height: 1),
+          Divider(color: ThemeColors.border(context), height: 1),
           const SizedBox(height: 16),
           // Status Row
           Row(
@@ -377,8 +379,8 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                       : AppColors.warning,
                 ),
               ),
-              Container(width: 1, height: 30, color: AppColors.borderDark),
-              Expanded(child: _buildInfoRow('Type', 'ESP32', Colors.white)),
+              Container(width: 1, height: 30, color: ThemeColors.border(context)),
+              Expanded(child: _buildInfoRow('Type', 'ESP32', ThemeColors.textPrimary(context))),
             ],
           ),
           // Warning if already assigned
@@ -400,7 +402,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'This device is already assigned. Assigning will reassign it.',
+                      l10n.t('This device is already assigned. Assigning will reassign it.'),
                       style: TextStyle(fontSize: 13, color: AppColors.warning),
                     ),
                   ),
@@ -418,7 +420,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5)),
+          style: TextStyle(fontSize: 12, color: ThemeColors.textSecondary(context).withOpacity(0.5)),
         ),
         const SizedBox(height: 4),
         Text(
@@ -446,14 +448,14 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       ),
       child: DropdownButtonFormField<String>(
         initialValue: _selectedCropType,
-        dropdownColor: AppColors.surfaceDark,
+        dropdownColor: ThemeColors.surface(context),
         decoration: InputDecoration(
           filled: false,
           prefixIcon: Icon(
             Icons.eco_outlined,
             color: _selectedCropType != null
                 ? AppColors.primary
-                : Colors.white.withOpacity(0.5),
+                : ThemeColors.textSecondary(context).withOpacity(0.5),
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
@@ -463,12 +465,12 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         ),
         hint: Text(
           'Select crop type',
-          style: TextStyle(color: Colors.white.withOpacity(0.5)),
+          style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5)),
         ),
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
         icon: Icon(
           Icons.keyboard_arrow_down,
-          color: Colors.white.withOpacity(0.5),
+          color: ThemeColors.textSecondary(context).withOpacity(0.5),
         ),
         items: _cropTypes.map((crop) {
           return DropdownMenuItem<String>(value: crop, child: Text(crop));
@@ -507,14 +509,14 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
         decoration: InputDecoration(
           filled: false,
           labelText: label,
           hintText: hint,
-          labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-          prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.5)),
+          labelStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5)),
+          hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3)),
+          prefixIcon: Icon(icon, color: ThemeColors.textSecondary(context).withOpacity(0.5)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(16),
         ),
@@ -525,7 +527,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   /// ------------------------------------------------
   /// INFO CARD
   /// ------------------------------------------------
-  Widget _buildInfoCard() {
+  Widget _buildInfoCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -542,9 +544,9 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'What happens after assigning?',
-                  style: TextStyle(
+                Text(
+                  l10n.t('What happens after assigning?'),
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppColors.info,
@@ -552,10 +554,10 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '• Device will be linked to your account\n'
-                  '• You can assign multiple devices for different crops\n'
-                  '• AI will provide crop-specific recommendations\n'
-                  '• Switch between crops in the dashboard',
+                  '• ${l10n.t('Device will be linked to your account')}\n'
+                  '• ${l10n.t('You can assign multiple devices for different crops')}\n'
+                  '• ${l10n.t('AI will provide crop-specific recommendations')}\n'
+                  '• ${l10n.t('Switch between crops in the dashboard')}',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppColors.info.withOpacity(0.8),
@@ -573,7 +575,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   /// ------------------------------------------------
   /// CLAIM BUTTON
   /// ------------------------------------------------
-  Widget _buildClaimButton() {
+  Widget _buildClaimButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -597,14 +599,14 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.link, size: 22),
-                  SizedBox(width: 10),
+                  const Icon(Icons.link, size: 22),
+                  const SizedBox(width: 10),
                   Text(
-                    'Assign Device',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    l10n.t('Assign Device'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -618,10 +620,10 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
-        color: Colors.white,
+        color: ThemeColors.textPrimary(context),
       ),
     );
   }

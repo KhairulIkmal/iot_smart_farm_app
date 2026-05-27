@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/app_localizations.dart';
 
 /// ------------------------------------------------------------
 /// LOGOUT DIALOG
@@ -47,8 +48,9 @@ class _LogoutDialogState extends State<LogoutDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Dialog(
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: ThemeColors.surface(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -67,23 +69,23 @@ class _LogoutDialogState extends State<LogoutDialog> {
             const SizedBox(height: 20),
 
             // Title
-            const Text(
-              'Log Out',
+            Text(
+              l10n.t('Log Out'),
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 12),
 
             // Message
             Text(
-              'Are you sure you want to log out of your account?',
+              l10n.t('Are you sure you want to log out?'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
-                color: Colors.white.withOpacity(0.7),
+                color: ThemeColors.textSecondary(context).withOpacity(0.7),
                 height: 1.5,
               ),
             ),
@@ -99,15 +101,15 @@ class _LogoutDialogState extends State<LogoutDialog> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: BorderSide(color: AppColors.borderDark),
+                        foregroundColor: ThemeColors.textPrimary(context),
+                        side: BorderSide(color: ThemeColors.border(context)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
+                      child: Text(
+                        l10n.t('Cancel'),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -144,9 +146,9 @@ class _LogoutDialogState extends State<LogoutDialog> {
                                 ),
                               ),
                             )
-                          : const Text(
-                              'Log Out',
-                              style: TextStyle(
+                          : Text(
+                              l10n.t('Log Out'),
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),

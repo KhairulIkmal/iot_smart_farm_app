@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/app_localizations.dart';
+import '../../../core/language_notifier.dart';
 
 /// ------------------------------------------------------------
 /// LANGUAGE SCREEN
@@ -33,57 +34,33 @@ class _LanguageScreenState extends State<LanguageScreen> {
       nativeName: 'Bahasa Melayu',
       flag: '🇲🇾',
     ),
-    _LanguageOption(
-      code: 'zh',
-      name: 'Chinese',
-      nativeName: '中文',
-      flag: '🇨🇳',
-    ),
-    _LanguageOption(
-      code: 'ta',
-      name: 'Tamil',
-      nativeName: 'தமிழ்',
-      flag: '🇮🇳',
-    ),
-    _LanguageOption(
-      code: 'id',
-      name: 'Indonesian',
-      nativeName: 'Bahasa Indonesia',
-      flag: '🇮🇩',
-    ),
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadLanguage();
-  }
-
-  Future<void> _loadLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selectedLanguage = prefs.getString('language') ?? 'en';
-    });
+    _selectedLanguage = LanguageNotifier.instance.languageCode;
   }
 
   Future<void> _selectLanguage(String code) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('language', code);
+    await LanguageNotifier.instance.setLanguage(code);
 
     setState(() {
       _selectedLanguage = code;
     });
 
     if (mounted) {
+      final message = code == 'ms'
+          ? 'Language changed to Malay'
+          : 'Language changed to English';
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               const Icon(Icons.check_circle, color: Colors.white),
               const SizedBox(width: 12),
-              Text(
-                'Language changed to ${_languages.firstWhere((l) => l.code == code).name}',
-              ),
+              Text(l10n.t(message)),
             ],
           ),
           backgroundColor: AppColors.primary,
@@ -98,10 +75,11 @@ class _LanguageScreenState extends State<LanguageScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -110,21 +88,21 @@ class _LanguageScreenState extends State<LanguageScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Language',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Language'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
       ),
       body: ListView.separated(
@@ -140,10 +118,10 @@ class _LanguageScreenState extends State<LanguageScreen> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.borderDark,
+                  color: isSelected ? AppColors.primary : ThemeColors.border(context),
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -154,7 +132,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: AppColors.backgroundDark,
+                      color: ThemeColors.bg(context),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
@@ -172,17 +150,17 @@ class _LanguageScreenState extends State<LanguageScreen> {
                       children: [
                         Text(
                           language.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                           ),
                         ),
                         Text(
                           language.nativeName,
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -209,7 +187,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppColors.borderDark,
+                          color: ThemeColors.border(context),
                           width: 2,
                         ),
                       ),

@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../services/live_sensor_service.dart';
 import '../../services/weather_service.dart';
@@ -224,13 +225,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadWeather,
           color: AppColors.primary,
-          backgroundColor: AppColors.surfaceDark,
+          backgroundColor: ThemeColors.surface(context),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
@@ -238,23 +240,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header with Field Selector
-                _buildHeader(),
+                _buildHeader(l10n),
                 const SizedBox(height: 20),
 
                 // Overview Section
-                _buildOverviewHeader(),
+                _buildOverviewHeader(l10n),
                 const SizedBox(height: 16),
 
                 // Weather Card (Live from OpenWeather API)
-                _buildWeatherCard(),
+                _buildWeatherCard(l10n),
                 const SizedBox(height: 16),
 
                 // Sensor Grid (Live from RTDB)
-                _buildSensorGrid(),
+                _buildSensorGrid(l10n),
                 const SizedBox(height: 16),
 
                 // Water Tank Card
-                _buildWaterTankCard(),
+                _buildWaterTankCard(l10n),
                 const SizedBox(height: 24),
               ],
             ),
@@ -267,7 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// ------------------------------------------------
   /// HEADER WITH FIELD SELECTOR
   /// ------------------------------------------------
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
     final selectedCrop = _selectedCropId != null
         ? _crops.where((c) => c.id == _selectedCropId).firstOrNull
         : null;
@@ -283,11 +285,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'ACTIVE FIELD',
+                    l10n.t('ACTIVE FIELD'),
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       letterSpacing: 1,
                     ),
                   ),
@@ -295,16 +297,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            _buildOnlineStatusBadge(),
+            _buildOnlineStatusBadge(l10n),
           ],
         ),
         const SizedBox(height: 4),
         GestureDetector(
-          onTap: () => _showCropSelectorBottomSheet(_crops),
+          onTap: () => _showCropSelectorBottomSheet(_crops, l10n),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.primary, width: 2),
               boxShadow: [
@@ -335,10 +337,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Text(
                               '${selectedData['crop_type'] ?? 'Unknown'} - ${selectedData['field_name'] ?? 'Field A'}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: ThemeColors.textPrimary(context),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -347,16 +349,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               selectedData['device_id'] ?? '',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white.withOpacity(0.5),
+                                color: ThemeColors.textSecondary(context).withOpacity(0.5),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         )
-                      : const Text(
-                          'Select Field',
+                      : Text(
+                          l10n.t('Select Field'),
                           style: TextStyle(
-                            color: Colors.white,
+                            color: ThemeColors.textPrimary(context),
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -372,7 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Show crop selector bottom sheet
-  void _showCropSelectorBottomSheet(List<QueryDocumentSnapshot> crops) {
+  void _showCropSelectorBottomSheet(List<QueryDocumentSnapshot> crops, AppLocalizations l10n) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -381,9 +383,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.7,
         ),
-        decoration: const BoxDecoration(
-          color: AppColors.backgroundDark,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: ThemeColors.bg(context),
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
@@ -397,7 +399,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: ThemeColors.textSecondary(context).withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -406,12 +408,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
-                  const Text(
-                    'Select Field',
+                  Text(
+                    l10n.t('Select Field'),
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: ThemeColors.textPrimary(context),
                     ),
                   ),
                   const Spacer(),
@@ -419,13 +421,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     '${crops.length} ${crops.length == 1 ? 'field' : 'fields'}',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                 ],
               ),
             ),
-            const Divider(color: AppColors.borderDark, height: 1),
+            Divider(color: ThemeColors.border(context), height: 1),
             // Crop list
             Flexible(
               child: ListView.builder(
@@ -461,12 +463,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? AppColors.primary.withOpacity(0.15)
-                            : AppColors.surfaceDark,
+                            : ThemeColors.surface(context),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isSelected
                               ? AppColors.primary
-                              : AppColors.borderDark,
+                              : ThemeColors.border(context),
                           width: isSelected ? 2 : 1,
                         ),
                       ),
@@ -493,10 +495,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 Text(
                                   '$cropType - $fieldName',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                    color: ThemeColors.textPrimary(context),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -505,14 +507,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Icon(
                                       Icons.developer_board,
                                       size: 14,
-                                      color: Colors.white.withOpacity(0.5),
+                                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       deviceId,
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Colors.white.withOpacity(0.5),
+                                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
                                       ),
                                     ),
                                   ],
@@ -541,11 +543,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Online status based on lastSeen timestamp from RTDB (driven by _rtdbSubscription)
-  Widget _buildOnlineStatusBadge() {
-    return _buildStatusBadge(_selectedDeviceId != null && _isOnline);
+  Widget _buildOnlineStatusBadge(AppLocalizations l10n) {
+    return _buildStatusBadge(_selectedDeviceId != null && _isOnline, l10n);
   }
 
-  Widget _buildStatusBadge(bool isOnline) {
+  Widget _buildStatusBadge(bool isOnline, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -581,7 +583,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(width: 6),
           Text(
-            isOnline ? 'ONLINE' : 'OFFLINE',
+            isOnline ? l10n.t('ONLINE') : l10n.t('OFFLINE'),
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -597,7 +599,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// ------------------------------------------------
   /// OVERVIEW HEADER
   /// ------------------------------------------------
-  Widget _buildOverviewHeader() {
+  Widget _buildOverviewHeader(AppLocalizations l10n) {
     // Use weather location's date if available, otherwise use device local time
     final now = _weatherData?.localTime ?? DateTime.now();
     final months = [
@@ -621,12 +623,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Overview',
+            Text(
+              l10n.t('Overview'),
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 2),
@@ -634,7 +636,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               'Today, ${months[now.month - 1]} ${now.day}',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
               ),
             ),
           ],
@@ -652,15 +654,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: Stack(
               children: [
-                const Icon(
+                Icon(
                   Icons.notifications_outlined,
-                  color: Colors.white,
+                  color: ThemeColors.icon(context),
                   size: 22,
                 ),
                 if (_unreadCount > 0)
@@ -687,14 +689,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// ------------------------------------------------
   /// WEATHER CARD (Live from OpenWeather API)
   /// ------------------------------------------------
-  Widget _buildWeatherCard() {
+  Widget _buildWeatherCard(AppLocalizations l10n) {
     if (_isLoadingWeather) {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: const Center(
           child: CircularProgressIndicator(
@@ -708,15 +710,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: Row(
           children: [
             Icon(
               Icons.cloud_off,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
               size: 40,
             ),
             const SizedBox(width: 16),
@@ -724,20 +726,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Weather Unavailable',
+                  Text(
+                    l10n.t('Weather Unavailable'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: ThemeColors.textPrimary(context),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Set farm location in settings',
+                    l10n.t('Set farm location in settings'),
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                 ],
@@ -777,9 +779,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: Column(
           children: [
@@ -812,7 +814,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 : weather.main,
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withOpacity(0.7),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.7),
                             ),
                           ),
                         ],
@@ -820,10 +822,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 8),
                       Text(
                         DateFormat('h:mm a').format(weather.localTime),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: ThemeColors.textPrimary(context),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -832,7 +834,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Icon(
                             Icons.location_on,
                             size: 14,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                           const SizedBox(width: 4),
                           Flexible(
@@ -840,7 +842,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               weather.cityName,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.white.withOpacity(0.5),
+                                color: ThemeColors.textSecondary(context).withOpacity(0.5),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -849,14 +851,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Icon(
                             Icons.air,
                             size: 14,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '${weather.windSpeed.toStringAsFixed(1)} km/h',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.5),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
                             ),
                           ),
                         ],
@@ -888,7 +890,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.backgroundDark,
+                      color: ThemeColors.bg(context),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -897,14 +899,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Icon(
                           Icons.schedule,
                           size: 14,
-                          color: Colors.white.withOpacity(0.5),
+                          color: ThemeColors.textSecondary(context).withOpacity(0.5),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Next hour:',
+                          l10n.t('Next hour:'),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.5),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -920,9 +922,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ? nextHourDescription[0].toUpperCase() +
                                     nextHourDescription.substring(1)
                                 : nextHourCondition,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                               fontWeight: FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1134,9 +1136,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ///   sensorHealth/soil: "ok"
   ///   sensorHealth/ph: "ok"
   /// ------------------------------------------------
-  Widget _buildSensorGrid() {
+  Widget _buildSensorGrid(AppLocalizations l10n) {
     if (_selectedDeviceId == null) {
-      return _buildNoDeviceCard();
+      return _buildNoDeviceCard(l10n);
     }
 
     return Column(
@@ -1161,14 +1163,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: Icons.water_drop,
                   iconColor: AppColors.soilMoisture,
                   iconBgColor: AppColors.soilMoistureBackground,
-                  label: 'SOIL MOISTURE',
+                  label: l10n.t('SOIL MOISTURE'),
                   value: '$_soil',
                   unit: '%',
-                  status: _getSoilStatus(_soil),
+                  status: _getSoilStatus(_soil, l10n),
                   statusColor: _getSoilStatusColor(_soil),
                   progressColor: AppColors.soilMoisture,
                   progressValue: _soil / 100,
                   sensorHealth: _sensorHealth['soil'],
+                  sensorErrorText: l10n.t('Sensor Error'),
                 ),
               ),
             ),
@@ -1190,14 +1193,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: Icons.science,
                   iconColor: AppColors.phLevel,
                   iconBgColor: AppColors.phLevelBackground,
-                  label: 'PH LEVEL',
+                  label: l10n.t('PH LEVEL'),
                   value: _ph.toStringAsFixed(1),
                   unit: '',
-                  status: _getPhStatus(_ph),
+                  status: _getPhStatus(_ph, l10n),
                   statusColor: _getPhStatusColor(_ph),
                   progressColor: AppColors.phLevel,
                   progressValue: _ph / 14,
                   sensorHealth: _sensorHealth['ph'],
+                  sensorErrorText: l10n.t('Sensor Error'),
                 ),
               ),
             ),
@@ -1224,14 +1228,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: Icons.thermostat,
                   iconColor: AppColors.temperature,
                   iconBgColor: AppColors.temperatureBackground,
-                  label: 'TEMPERATURE',
+                  label: l10n.t('TEMPERATURE'),
                   value: '$_temp',
                   unit: '°C',
-                  status: _getTempStatus(_temp),
+                  status: _getTempStatus(_temp, l10n),
                   statusColor: _getTempStatusColor(_temp),
                   progressColor: AppColors.temperature,
                   progressValue: _temp / 50,
                   isWarning: _temp > 30,
+                  sensorErrorText: l10n.t('Sensor Error'),
                 ),
               ),
             ),
@@ -1253,13 +1258,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: Icons.cloud,
                   iconColor: AppColors.humidity,
                   iconBgColor: AppColors.humidityBackground,
-                  label: 'HUMIDITY',
+                  label: l10n.t('HUMIDITY'),
                   value: '$_humidity',
                   unit: '%',
-                  status: _getHumidityStatus(_humidity),
+                  status: _getHumidityStatus(_humidity, l10n),
                   statusColor: _getHumidityStatusColor(_humidity),
                   progressColor: AppColors.humidity,
                   progressValue: _humidity / 100,
+                  sensorErrorText: l10n.t('Sensor Error'),
                 ),
               ),
             ),
@@ -1282,6 +1288,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required double progressValue,
     bool isWarning = false,
     String? sensorHealth,
+    String sensorErrorText = 'Sensor Error',
   }) {
     // Check if sensor has error
     final hasError = sensorHealth == 'error';
@@ -1289,14 +1296,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: hasError
               ? AppColors.error.withOpacity(0.5)
               : isWarning
               ? AppColors.warning.withOpacity(0.5)
-              : AppColors.borderDark,
+              : ThemeColors.border(context),
         ),
       ),
       child: Column(
@@ -1342,7 +1349,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
               letterSpacing: 0.5,
             ),
           ),
@@ -1356,7 +1363,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: hasError ? AppColors.error : Colors.white,
+                  color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
                 ),
               ),
               if (unit.isNotEmpty && !hasError)
@@ -1366,7 +1373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     unit,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                 ),
@@ -1375,7 +1382,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 4),
           // Status
           Text(
-            hasError ? 'Sensor Error' : status,
+            hasError ? sensorErrorText : status,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -1388,7 +1395,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: hasError ? 0 : progressValue.clamp(0.0, 1.0),
-              backgroundColor: AppColors.backgroundDark,
+              backgroundColor: ThemeColors.bg(context),
               valueColor: AlwaysStoppedAnimation<Color>(
                 hasError ? AppColors.error : progressColor,
               ),
@@ -1400,36 +1407,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildNoDeviceCard() {
+  Widget _buildNoDeviceCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: [
           Icon(
             Icons.sensors_off,
             size: 48,
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Device Selected',
+          Text(
+            l10n.t('No Device Selected'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Colors.white,
+              color: ThemeColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Select a field to view sensor data',
+            l10n.t('Select a field to view sensor data'),
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
         ],
@@ -1442,7 +1449,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// RTDB: sensors/ESP32_001/waterLevel: 80
   /// RTDB: sensors/ESP32_001/sensorHealth/waterLevel: "error"
   /// ------------------------------------------------
-  Widget _buildWaterTankCard() {
+  Widget _buildWaterTankCard(AppLocalizations l10n) {
     if (_selectedDeviceId == null) return const SizedBox.shrink();
 
     final waterLevel = _waterLevel;
@@ -1464,14 +1471,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: hasError
                     ? AppColors.error.withOpacity(0.5)
                     : isCritical
                     ? AppColors.error.withOpacity(0.5)
-                    : AppColors.borderDark,
+                    : ThemeColors.border(context),
               ),
             ),
             child: Column(
@@ -1499,21 +1506,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Water Tank Level',
+                          Text(
+                            l10n.t('Water Tank Level'),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             hasError
-                                ? 'SENSOR ERROR'
+                                ? l10n.t('SENSOR ERROR')
                                 : isCritical
-                                ? 'CRITICAL LOW'
-                                : 'Normal',
+                                ? l10n.t('CRITICAL LOW')
+                                : l10n.t('Normal'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -1531,7 +1538,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: hasError ? AppColors.error : Colors.white,
+                        color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
                       ),
                     ),
                   ],
@@ -1542,7 +1549,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: hasError ? 0 : waterLevel / 100,
-                    backgroundColor: AppColors.backgroundDark,
+                    backgroundColor: ThemeColors.bg(context),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       hasError || isCritical
                           ? AppColors.error
@@ -1560,10 +1567,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// ------------------------------------------------
   /// STATUS HELPER METHODS
   /// ------------------------------------------------
-  String _getSoilStatus(int value) {
-    if (value < 30) return 'Low';
-    if (value > 80) return 'High';
-    return 'Normal';
+  String _getSoilStatus(int value, AppLocalizations l10n) {
+    if (value < 30) return l10n.t('Low');
+    if (value > 80) return l10n.t('High');
+    return l10n.t('Normal');
   }
 
   Color _getSoilStatusColor(int value) {
@@ -1572,10 +1579,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return AppColors.primary;
   }
 
-  String _getPhStatus(double value) {
-    if (value < 5.5) return 'Acidic';
-    if (value > 7.5) return 'Alkaline';
-    return 'Optimal';
+  String _getPhStatus(double value, AppLocalizations l10n) {
+    if (value < 5.5) return l10n.t('Acidic');
+    if (value > 7.5) return l10n.t('Alkaline');
+    return l10n.t('Optimal');
   }
 
   Color _getPhStatusColor(double value) {
@@ -1584,10 +1591,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return AppColors.primary;
   }
 
-  String _getTempStatus(int value) {
-    if (value < 15) return 'Low';
-    if (value > 30) return 'High Warning';
-    return 'Normal';
+  String _getTempStatus(int value, AppLocalizations l10n) {
+    if (value < 15) return l10n.t('Low');
+    if (value > 30) return l10n.t('High');
+    return l10n.t('Normal');
   }
 
   Color _getTempStatusColor(int value) {
@@ -1596,10 +1603,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return AppColors.primary;
   }
 
-  String _getHumidityStatus(int value) {
-    if (value < 30) return 'Low';
-    if (value > 70) return 'High';
-    return 'Normal';
+  String _getHumidityStatus(int value, AppLocalizations l10n) {
+    if (value < 30) return l10n.t('Low');
+    if (value > 70) return l10n.t('High');
+    return l10n.t('Normal');
   }
 
   Color _getHumidityStatusColor(int value) {

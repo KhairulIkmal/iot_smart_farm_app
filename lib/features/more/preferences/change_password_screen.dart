@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 
 /// ------------------------------------------------------------
@@ -103,13 +104,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
+      final l10n = AppLocalizations.of(context);
       String message = 'An error occurred';
       if (e.code == 'wrong-password') {
-        message = 'Current password is incorrect';
+        message = l10n.t('Incorrect current password');
       } else if (e.code == 'weak-password') {
-        message = 'New password is too weak';
+        message = l10n.t('Password too weak');
       } else if (e.code == 'requires-recent-login') {
-        message = 'Please log out and log in again';
+        message = l10n.t('Please log in again to change your password');
       }
 
       if (mounted) {
@@ -138,10 +140,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -150,21 +153,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Change Password',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Change Password'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -192,8 +195,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Choose a strong password that you don\'t use elsewhere',
-                        style: TextStyle(
+                        l10n.t('Choose a strong password that you don\'t use elsewhere'),
+                        style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.info,
                           height: 1.4,
@@ -208,7 +211,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               // Current Password
               _buildPasswordField(
                 controller: _currentPasswordController,
-                label: 'Current Password',
+                label: l10n.t('Current Password'),
                 showPassword: _showCurrentPassword,
                 onToggleVisibility: () {
                   setState(() => _showCurrentPassword = !_showCurrentPassword);
@@ -225,7 +228,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               // New Password
               _buildPasswordField(
                 controller: _newPasswordController,
-                label: 'New Password',
+                label: l10n.t('New Password'),
                 showPassword: _showNewPassword,
                 onToggleVisibility: () {
                   setState(() => _showNewPassword = !_showNewPassword);
@@ -246,13 +249,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               const SizedBox(height: 16),
 
               // Password Requirements
-              _buildPasswordRequirements(),
+              _buildPasswordRequirements(l10n),
               const SizedBox(height: 20),
 
               // Confirm Password
               _buildPasswordField(
                 controller: _confirmPasswordController,
-                label: 'Confirm New Password',
+                label: l10n.t('Confirm New Password'),
                 showPassword: _showConfirmPassword,
                 onToggleVisibility: () {
                   setState(() => _showConfirmPassword = !_showConfirmPassword);
@@ -262,7 +265,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     return 'Please confirm your new password';
                   }
                   if (v != _newPasswordController.text) {
-                    return 'Passwords do not match';
+                    return l10n.t('Passwords do not match');
                   }
                   return null;
                 },
@@ -295,9 +298,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             ),
                           ),
                         )
-                      : const Text(
-                          'Change Password',
-                          style: TextStyle(
+                      : Text(
+                          l10n.t('Change Password'),
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
@@ -320,18 +323,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: TextFormField(
         controller: controller,
         obscureText: !showPassword,
         validator: validator,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+          labelStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5)),
           prefixIcon: Icon(
             Icons.lock_outline,
             color: AppColors.primary.withOpacity(0.7),
@@ -339,7 +342,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           suffixIcon: IconButton(
             icon: Icon(
               showPassword ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
             onPressed: onToggleVisibility,
           ),
@@ -351,30 +354,30 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
-  Widget _buildPasswordRequirements() {
+  Widget _buildPasswordRequirements(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Password Requirements',
+            l10n.t('Password Requirements'),
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.7),
+              color: ThemeColors.textSecondary(context).withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 12),
-          _buildRequirement('At least 8 characters', _hasMinLength),
-          _buildRequirement('One uppercase letter', _hasUppercase),
-          _buildRequirement('One lowercase letter', _hasLowercase),
-          _buildRequirement('One number', _hasNumber),
+          _buildRequirement(l10n.t('At least 8 characters'), _hasMinLength),
+          _buildRequirement(l10n.t('One uppercase letter'), _hasUppercase),
+          _buildRequirement(l10n.t('One lowercase letter'), _hasLowercase),
+          _buildRequirement(l10n.t('One number'), _hasNumber),
         ],
       ),
     );
@@ -388,14 +391,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           Icon(
             isMet ? Icons.check_circle : Icons.circle_outlined,
             size: 18,
-            color: isMet ? AppColors.primary : Colors.white.withOpacity(0.3),
+            color: isMet ? AppColors.primary : ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
           const SizedBox(width: 10),
           Text(
             text,
             style: TextStyle(
               fontSize: 14,
-              color: isMet ? Colors.white : Colors.white.withOpacity(0.5),
+              color: isMet ? ThemeColors.textPrimary(context) : ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
         ],

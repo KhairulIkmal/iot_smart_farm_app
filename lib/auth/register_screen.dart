@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../core/constants.dart';
+import '../core/app_localizations.dart';
 import 'auth_service.dart';
 import 'login_screen.dart';
 
@@ -42,7 +43,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (!_acceptedTerms) {
-      _showErrorSnackBar('Please accept the Terms & Conditions');
+      final l10n = AppLocalizations.of(context);
+      _showErrorSnackBar(l10n.t('Please accept the Terms & Conditions'));
       return;
     }
 
@@ -60,7 +62,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!result['success']) {
         _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
       } else {
-        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
         if (mounted) {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
@@ -118,7 +119,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -169,23 +170,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildWelcomeText() {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
-        const Text(
-          'Create Account',
+        Text(
+          l10n.t('Create Account'),
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: ThemeColors.textPrimary(context),
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Start monitoring your farm with smart\nIoT solutions today.',
+          l10n.t('Start monitoring your farm with smart\nIoT solutions today.'),
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white.withOpacity(0.7),
+            color: ThemeColors.textSecondary(context).withOpacity(0.7),
             height: 1.5,
           ),
         ),
@@ -194,21 +196,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildRegisterForm() {
+    final l10n = AppLocalizations.of(context);
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label('Full Name'),
+          _label(l10n.t('Full Name')),
           _nameField(),
           const SizedBox(height: 18),
-          _label('Email address'),
+          _label(l10n.t('Email address')),
           _emailField(),
           const SizedBox(height: 18),
-          _label('Password'),
+          _label(l10n.t('Password')),
           _passwordField(),
           const SizedBox(height: 18),
-          _label('Confirm Password'),
+          _label(l10n.t('Confirm Password')),
           _confirmPasswordField(),
         ],
       ),
@@ -220,41 +223,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          color: Colors.white,
+          color: ThemeColors.textPrimary(context),
         ),
       ),
     );
   }
 
   Widget _nameField() {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: _nameController,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: ThemeColors.textPrimary(context)),
       decoration: _inputDecoration(
-        'Enter your full name',
+        l10n.t('Enter your full name'),
         Icons.person_outline,
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) return AppStrings.fieldRequired;
-        if (value.length < 2) return 'Name must be at least 2 characters';
+        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (value.length < 2) return l10n.t('Name must be at least 2 characters');
         return null;
       },
     );
   }
 
   Widget _emailField() {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      style: const TextStyle(color: Colors.white),
-      decoration: _inputDecoration('farmer@example.com', Icons.email_outlined),
+      style: TextStyle(color: ThemeColors.textPrimary(context)),
+      decoration: _inputDecoration(l10n.t('farmer@example.com'), Icons.email_outlined),
       validator: (value) {
-        if (value == null || value.isEmpty) return AppStrings.fieldRequired;
+        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
         if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-          return AppStrings.invalidEmail;
+          return l10n.t(AppStrings.invalidEmail);
         }
         return null;
       },
@@ -262,17 +267,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _passwordField() {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: ThemeColors.textPrimary(context)),
       decoration: _inputDecoration(
-        'Create a strong password',
+        l10n.t('Create a strong password'),
         Icons.lock_outline,
         suffix: IconButton(
           icon: Icon(
             _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: Colors.white.withOpacity(0.5),
+            color: ThemeColors.textSecondary(context).withOpacity(0.5),
           ),
           onPressed: () {
             setState(() => _obscurePassword = !_obscurePassword);
@@ -280,25 +286,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) return AppStrings.fieldRequired;
-        if (value.length < 6) return AppStrings.invalidPassword;
+        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (value.length < 6) return l10n.t(AppStrings.invalidPassword);
         return null;
       },
     );
   }
 
   Widget _confirmPasswordField() {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: _confirmPasswordController,
       obscureText: _obscureConfirmPassword,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: ThemeColors.textPrimary(context)),
       decoration: _inputDecoration(
-        'Re-enter your password',
+        l10n.t('Re-enter your password'),
         Icons.lock_outline,
         suffix: IconButton(
           icon: Icon(
             _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-            color: Colors.white.withOpacity(0.5),
+            color: ThemeColors.textSecondary(context).withOpacity(0.5),
           ),
           onPressed: () {
             setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
@@ -306,9 +313,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) return AppStrings.fieldRequired;
+        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
         if (value != _passwordController.text) {
-          return AppStrings.passwordsDoNotMatch;
+          return l10n.t(AppStrings.passwordsDoNotMatch);
         }
         return null;
       },
@@ -322,18 +329,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-      prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.5)),
+      hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3)),
+      prefixIcon: Icon(icon, color: ThemeColors.textSecondary(context).withOpacity(0.5)),
       suffixIcon: suffix,
       filled: true,
-      fillColor: AppColors.surfaceDark,
+      fillColor: ThemeColors.surface(context),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.borderDark),
+        borderSide: BorderSide(color: ThemeColors.border(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.borderDark),
+        borderSide: BorderSide(color: ThemeColors.border(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -348,6 +355,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildTermsCheckbox() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Checkbox(
@@ -359,8 +367,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         Expanded(
           child: Text(
-            'I agree to the Terms & Conditions and Privacy Policy',
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
+            l10n.t('I agree to the Terms & Conditions and Privacy Policy'),
+            style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.7)),
           ),
         ),
       ],
@@ -379,23 +387,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         child: _isLoading
             ? const CircularProgressIndicator()
-            : const Text('Create Account'),
+            : Text(AppLocalizations.of(context).t('Create Account')),
       ),
     );
   }
 
   Widget _buildDivider() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: AppColors.borderDark)),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Or sign up with',
-            style: TextStyle(color: Colors.white54),
+            l10n.t('Or sign up with'),
+            style: TextStyle(color: ThemeColors.textSecondary(context)),
           ),
         ),
-        Expanded(child: Container(height: 1, color: AppColors.borderDark)),
+        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
       ],
     );
   }
@@ -408,24 +417,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
         onPressed: _isGoogleLoading ? null : _signUpWithGoogle,
         child: _isGoogleLoading
             ? const CircularProgressIndicator()
-            : const Text('Sign up with Google'),
+            : Text(AppLocalizations.of(context).t('Sign up with Google')),
       ),
     );
   }
 
   Widget _buildLoginLink() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          'Already have an account? ',
-          style: TextStyle(color: Colors.white.withOpacity(0.7)),
+          l10n.t('Already have an account? '),
+          style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.7)),
         ),
         GestureDetector(
           onTap: _navigateToLogin,
-          child: const Text(
-            'Sign in',
-            style: TextStyle(color: AppColors.primary),
+          child: Text(
+            l10n.t('Sign in'),
+            style: const TextStyle(color: AppColors.primary),
           ),
         ),
       ],

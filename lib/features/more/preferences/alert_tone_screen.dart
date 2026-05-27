@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 
 /// ------------------------------------------------------------
@@ -64,10 +65,11 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -76,21 +78,21 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Alert Tones',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Alert Tones'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -99,13 +101,13 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Sound & Vibration Toggles
-            _buildSectionTitle('General'),
+            _buildSectionTitle(l10n.t('General')),
             const SizedBox(height: 12),
             _buildToggleCard(
               icon: Icons.volume_up,
               iconColor: AppColors.primary,
-              title: 'Sound',
-              subtitle: 'Play sound for alerts',
+              title: l10n.t('Sound'),
+              subtitle: l10n.t('Play sound for alerts'),
               value: _soundEnabled,
               onChanged: (v) {
                 setState(() => _soundEnabled = v);
@@ -116,8 +118,8 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
             _buildToggleCard(
               icon: Icons.vibration,
               iconColor: AppColors.warning,
-              title: 'Vibration',
-              subtitle: 'Vibrate on alerts',
+              title: l10n.t('Vibration'),
+              subtitle: l10n.t('Vibrate on alerts'),
               value: _vibrationEnabled,
               onChanged: (v) {
                 setState(() => _vibrationEnabled = v);
@@ -127,15 +129,15 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
             const SizedBox(height: 24),
 
             // Volume
-            _buildSectionTitle('Volume'),
+            _buildSectionTitle(l10n.t('Volume')),
             const SizedBox(height: 12),
-            _buildVolumeCard(),
+            _buildVolumeCard(l10n),
             const SizedBox(height: 24),
 
             // Tone Selection
-            _buildSectionTitle('Alert Tone'),
+            _buildSectionTitle(l10n.t('Alert Tone')),
             const SizedBox(height: 12),
-            _buildToneSelection(),
+            _buildToneSelection(l10n),
           ],
         ),
       ),
@@ -148,7 +150,7 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: Colors.white.withOpacity(0.5),
+        color: ThemeColors.textSecondary(context).withOpacity(0.5),
         letterSpacing: 1,
       ),
     );
@@ -165,9 +167,9 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Row(
         children: [
@@ -186,17 +188,17 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                 ),
                 Text(
                   subtitle,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                   ),
                 ),
               ],
@@ -208,20 +210,20 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
             activeThumbColor: AppColors.primary,
             activeTrackColor: AppColors.primary.withOpacity(0.3),
             inactiveThumbColor: Colors.grey,
-            inactiveTrackColor: AppColors.borderDark,
+            inactiveTrackColor: ThemeColors.border(context),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildVolumeCard() {
+  Widget _buildVolumeCard(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: [
@@ -229,11 +231,11 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Alert Volume',
-                style: const TextStyle(
+                l10n.t('Alert Volume'),
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                 ),
               ),
               Text(
@@ -251,14 +253,14 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
             children: [
               Icon(
                 Icons.volume_mute,
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
                 size: 20,
               ),
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     activeTrackColor: AppColors.primary,
-                    inactiveTrackColor: AppColors.borderDark,
+                    inactiveTrackColor: ThemeColors.border(context),
                     thumbColor: AppColors.primary,
                     overlayColor: AppColors.primary.withOpacity(0.2),
                     trackHeight: 6,
@@ -282,12 +284,12 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
     );
   }
 
-  Widget _buildToneSelection() {
+  Widget _buildToneSelection(AppLocalizations l10n) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: _tones.asMap().entries.map((entry) {
@@ -320,27 +322,27 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? AppColors.primary.withOpacity(0.1)
-                              : AppColors.backgroundDark,
+                              : ThemeColors.bg(context),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
                           tone.icon,
                           color: isSelected
                               ? AppColors.primary
-                              : Colors.white.withOpacity(0.5),
+                              : ThemeColors.textSecondary(context).withOpacity(0.5),
                           size: 22,
                         ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Text(
-                          tone.name,
+                          l10n.t(tone.name),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                             color: isSelected
                                 ? AppColors.primary
-                                : Colors.white,
+                                : ThemeColors.textPrimary(context),
                           ),
                         ),
                       ),
@@ -364,7 +366,7 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: AppColors.borderDark,
+                              color: ThemeColors.border(context),
                               width: 2,
                             ),
                           ),
@@ -374,7 +376,7 @@ class _AlertToneScreenState extends State<AlertToneScreen> {
                 ),
               ),
               if (!isLast)
-                Divider(height: 1, color: AppColors.borderDark, indent: 60),
+                Divider(height: 1, color: ThemeColors.border(context), indent: 60),
             ],
           );
         }).toList(),

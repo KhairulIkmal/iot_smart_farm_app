@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/theme.dart';
+import 'core/app_localizations.dart';
+import 'core/language_notifier.dart';
+import 'core/theme_notifier.dart';
 import 'auth/login_screen.dart';
 import 'features/navigation/main_navigation.dart';
 import 'features/crop_management/crop_list_screen.dart';
@@ -25,6 +28,10 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp();
+
+  // Load saved language and theme before showing UI
+  await LanguageNotifier.instance.init();
+  await ThemeNotifier.instance.init();
 
   // Initialize FCM background handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -52,13 +59,22 @@ class IoTSmartFarmApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'IoT Smart Farm',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
-      home: const AuthWrapper(),
+    return ListenableBuilder(
+      listenable: Listenable.merge([LanguageNotifier.instance, ThemeNotifier.instance]),
+      builder: (context, _) {
+        return AppLocalizationsProvider(
+          languageCode: LanguageNotifier.instance.languageCode,
+          child: MaterialApp(
+            title: 'IoT Smart Farm',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: ThemeNotifier.instance.mode,
+            themeAnimationDuration: Duration.zero,
+            home: const AuthWrapper(),
+          ),
+        );
+      },
     );
   }
 }
@@ -188,12 +204,16 @@ class SplashScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.eco, size: 64, color: Color(0xFF2E7D32)),
+              child: Image.asset(
+                'assets/images/app_logo.png',
+                width: 80,
+                height: 80,
+              ),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'IoT Smart Farm',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).t('IoT Smart Farm'),
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -202,7 +222,7 @@ class SplashScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Smart Farming Solutions',
+              AppLocalizations.of(context).t('Smart Farming Solutions'),
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.white.withOpacity(0.8),

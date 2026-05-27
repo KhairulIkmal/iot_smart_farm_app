@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/theme.dart';
+import '../../core/app_localizations.dart';
+import '../../core/language_notifier.dart';
+import '../../core/theme_notifier.dart';
 import '../../services/notifications/notification_service.dart';
 import '../../services/user_counter_service.dart';
 import 'profile/profile_screen.dart';
@@ -34,11 +39,33 @@ class MoreScreen extends StatefulWidget {
 class _MoreScreenState extends State<MoreScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
+
+  int _unreadCount = 0;
+  StreamSubscription<int>? _unreadSub;
+
+  @override
+  void initState() {
+    super.initState();
+    final stream = _notificationService.getUnreadCountStream();
+    if (stream != null) {
+      _unreadSub = stream.listen((count) {
+        if (mounted) setState(() => _unreadCount = count);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _unreadSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -46,12 +73,12 @@ class _MoreScreenState extends State<MoreScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
-              const Text(
-                'Settings',
+              Text(
+                l10n.t('Settings'),
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                 ),
               ),
               const SizedBox(height: 24),
@@ -61,84 +88,83 @@ class _MoreScreenState extends State<MoreScreen> {
               const SizedBox(height: 24),
 
               // Farm Management Section
-              _buildSectionTitle('Farm Management'),
+              _buildSectionTitle(l10n.t('Farm Management')),
               const SizedBox(height: 12),
-              StreamBuilder<int>(
-                stream: NotificationService().getUnreadCountStream(),
-                builder: (context, snapshot) {
-                  final unreadCount = snapshot.data ?? 0;
-
-                  return _buildMenuCard([
-                    _MenuItem(
-                      icon: Icons.location_on_outlined,
-                      iconColor: AppColors.primary,
-                      title: 'Farm Location',
-                      subtitle: 'Set location for weather',
-                      onTap: () => _navigateTo(const FarmLocationScreen()),
-                    ),
-                    _MenuItem(
-                      icon: Icons.agriculture_outlined,
-                      iconColor: AppColors.warning,
-                      title: 'Farm Details',
-                      subtitle: 'Manage farm information',
-                      onTap: () => _navigateTo(const FarmDetailsScreen()),
-                    ),
-                    _MenuItem(
-                      icon: Icons.eco_outlined,
-                      iconColor: AppColors.soilMoisture,
-                      title: 'Crop Management',
-                      subtitle: 'Manage farm information',
-                      onTap: () => _navigateTo(const CropListScreen()),
-                    ),
-                    _MenuItem(
-                      icon: Icons.notifications_outlined,
-                      iconColor: AppColors.error,
-                      title: 'Notifications',
-                      subtitle: 'Alerts and updates',
-                      badge: unreadCount > 0 ? '$unreadCount' : null,
-                      onTap: () => _navigateTo(const NotificationsScreen()),
-                    ),
-                  ]);
-                },
-              ),
+              _buildMenuCard([
+                _MenuItem(
+                  icon: Icons.location_on_outlined,
+                  iconColor: AppColors.primary,
+                  title: l10n.t('Farm Location'),
+                  subtitle: l10n.t('Set location for weather'),
+                  onTap: () => _navigateTo(const FarmLocationScreen()),
+                ),
+                _MenuItem(
+                  icon: Icons.agriculture_outlined,
+                  iconColor: AppColors.warning,
+                  title: l10n.t('Farm Details'),
+                  subtitle: l10n.t('Manage farm information'),
+                  onTap: () => _navigateTo(const FarmDetailsScreen()),
+                ),
+                _MenuItem(
+                  icon: Icons.eco_outlined,
+                  iconColor: AppColors.soilMoisture,
+                  title: l10n.t('Crop Management'),
+                  subtitle: l10n.t('Manage farm information'),
+                  onTap: () => _navigateTo(const CropListScreen()),
+                ),
+                _MenuItem(
+                  icon: Icons.notifications_outlined,
+                  iconColor: AppColors.error,
+                  title: l10n.t('Notifications'),
+                  subtitle: l10n.t('Alerts and updates'),
+                  badge: _unreadCount > 0 ? '$_unreadCount' : null,
+                  onTap: () => _navigateTo(const NotificationsScreen()),
+                ),
+              ]),
               const SizedBox(height: 24),
 
               // Preferences Section
-              _buildSectionTitle('Preferences'),
+              _buildSectionTitle(l10n.t('Preferences')),
               const SizedBox(height: 12),
               _buildMenuCard([
                 _MenuItem(
                   icon: Icons.language_outlined,
                   iconColor: AppColors.info,
-                  title: 'Language',
-                  subtitle: 'English',
+                  title: l10n.t('Language'),
+                  subtitle: LanguageNotifier.instance.languageCode == 'ms' ? 'Bahasa Melayu' : 'English',
                   onTap: () => _navigateTo(const LanguageScreen()),
                 ),
                 _MenuItem(
                   icon: Icons.volume_up_outlined,
                   iconColor: AppColors.phLevel,
-                  title: 'Alert Tones',
-                  subtitle: 'Sound settings',
+                  title: l10n.t('Alert Tones'),
+                  subtitle: l10n.t('Sound settings'),
                   onTap: () => _navigateTo(const AlertToneScreen()),
                 ),
                 _MenuItem(
                   icon: Icons.lock_outline,
                   iconColor: AppColors.temperature,
-                  title: 'Change Password',
-                  subtitle: 'Update your password',
+                  title: l10n.t('Change Password'),
+                  subtitle: l10n.t('Update your password'),
                   onTap: () => _navigateTo(const ChangePasswordScreen()),
                 ),
               ]),
               const SizedBox(height: 24),
 
+              // Appearance Section
+              _buildSectionTitle(l10n.t('Appearance')),
+              const SizedBox(height: 12),
+              _buildAppearanceCard(l10n),
+              const SizedBox(height: 24),
+
               // App Info
-              _buildSectionTitle('About'),
+              _buildSectionTitle(l10n.t('About')),
               const SizedBox(height: 12),
               _buildMenuCard([
                 _MenuItem(
                   icon: Icons.info_outline,
                   iconColor: Colors.grey,
-                  title: 'App Version',
+                  title: l10n.t('App Version'),
                   subtitle: 'v1.0.0',
                   showArrow: false,
                   onTap: () {},
@@ -146,13 +172,13 @@ class _MoreScreenState extends State<MoreScreen> {
                 _MenuItem(
                   icon: Icons.description_outlined,
                   iconColor: Colors.grey,
-                  title: 'Terms of Service',
+                  title: l10n.t('Terms of Service'),
                   onTap: () {},
                 ),
                 _MenuItem(
                   icon: Icons.privacy_tip_outlined,
                   iconColor: Colors.grey,
-                  title: 'Privacy Policy',
+                  title: l10n.t('Privacy Policy'),
                   onTap: () {},
                 ),
               ]),
@@ -228,9 +254,9 @@ class _MoreScreenState extends State<MoreScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: Row(
           children: [
@@ -285,10 +311,10 @@ class _MoreScreenState extends State<MoreScreen> {
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: ThemeColors.textPrimary(context),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -296,7 +322,7 @@ class _MoreScreenState extends State<MoreScreen> {
                     farmName,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white.withOpacity(0.7),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.7),
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -304,13 +330,13 @@ class _MoreScreenState extends State<MoreScreen> {
                     email,
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.5)),
+            Icon(Icons.chevron_right, color: ThemeColors.icon(context).withOpacity(0.5)),
           ],
         ),
       ),
@@ -328,7 +354,7 @@ class _MoreScreenState extends State<MoreScreen> {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: Colors.white.withOpacity(0.5),
+          color: ThemeColors.textSecondary(context).withOpacity(0.5),
           letterSpacing: 1,
         ),
       ),
@@ -341,9 +367,9 @@ class _MoreScreenState extends State<MoreScreen> {
   Widget _buildMenuCard(List<_MenuItem> items) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         children: items.asMap().entries.map((entry) {
@@ -355,7 +381,7 @@ class _MoreScreenState extends State<MoreScreen> {
             children: [
               _buildMenuItem(item),
               if (!isLast)
-                Divider(height: 1, color: AppColors.borderDark, indent: 60),
+                Divider(height: 1, color: ThemeColors.border(context), indent: 60),
             ],
           );
         }).toList(),
@@ -386,10 +412,10 @@ class _MoreScreenState extends State<MoreScreen> {
                 children: [
                   Text(
                     item.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: Colors.white,
+                      color: ThemeColors.textPrimary(context),
                     ),
                   ),
                   if (item.subtitle != null)
@@ -397,7 +423,7 @@ class _MoreScreenState extends State<MoreScreen> {
                       item.subtitle!,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withOpacity(0.5),
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       ),
                     ),
                 ],
@@ -427,10 +453,71 @@ class _MoreScreenState extends State<MoreScreen> {
                 padding: const EdgeInsets.only(left: 8),
                 child: Icon(
                   Icons.chevron_right,
-                  color: Colors.white.withOpacity(0.3),
+                  color: ThemeColors.icon(context).withOpacity(0.3),
                   size: 22,
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// APPEARANCE CARD
+  /// ------------------------------------------------
+  Widget _buildAppearanceCard(AppLocalizations l10n) {
+    final isDark = ThemeNotifier.instance.isDark;
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ThemeColors.border(context)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                color: AppColors.warning,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.t('Dark Mode'),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: ThemeColors.textPrimary(context),
+                    ),
+                  ),
+                  Text(
+                    isDark ? l10n.t('On') : l10n.t('Off'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: isDark,
+              onChanged: (_) => ThemeNotifier.instance.toggle(),
+              activeColor: AppColors.primary,
+            ),
           ],
         ),
       ),
@@ -453,14 +540,14 @@ class _MoreScreenState extends State<MoreScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.logout, size: 22),
-            SizedBox(width: 10),
+            const Icon(Icons.logout, size: 22),
+            const SizedBox(width: 10),
             Text(
-              'Log Out',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              AppLocalizations.of(context).t('Log Out'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ],
         ),

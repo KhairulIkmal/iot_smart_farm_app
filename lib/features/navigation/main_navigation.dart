@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../core/app_localizations.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../sensors/sensors_screen.dart';
 import '../irrigation/irrigation_screen.dart';
@@ -41,15 +42,16 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
       extendBody: true, // Allow body to extend behind nav bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: AppColors.backgroundDark.withOpacity(0.95),
+          color: ThemeColors.bg(context).withOpacity(0.95),
           border: Border(
             top: BorderSide(
-              color: AppColors.borderDark,
+              color: ThemeColors.border(context),
               width: 1,
             ),
           ),
@@ -68,13 +70,13 @@ class _MainNavigationState extends State<MainNavigation> {
                       index: 0,
                       icon: Icons.dashboard_outlined,
                       activeIcon: Icons.dashboard,
-                      label: 'Home',
+                      label: l10n.t('Home'),
                     ),
                     _buildNavItem(
                       index: 1,
                       icon: Icons.show_chart,
                       activeIcon: Icons.show_chart,
-                      label: 'Sensors',
+                      label: l10n.t('Sensors'),
                     ),
                     // Empty space for floating button
                     const SizedBox(width: 56),
@@ -82,13 +84,13 @@ class _MainNavigationState extends State<MainNavigation> {
                       index: 3,
                       icon: Icons.smart_toy_outlined,
                       activeIcon: Icons.smart_toy,
-                      label: 'AI Assist',
+                      label: l10n.t('AI Assist'),
                     ),
                     _buildNavItem(
                       index: 4,
                       icon: Icons.menu,
                       activeIcon: Icons.menu,
-                      label: AppStrings.more,
+                      label: l10n.t(AppStrings.more),
                     ),
                   ],
                 ),
@@ -107,6 +109,7 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   Widget _buildFloatingButton() {
+    final l10n = AppLocalizations.of(context);
     final bool isSelected = _currentIndex == 2;
 
     return Column(
@@ -132,7 +135,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 end: Alignment.bottomRight,
               ),
               border: Border.all(
-                color: AppColors.backgroundDark,
+                color: ThemeColors.bg(context),
                 width: 4,
               ),
               boxShadow: [
@@ -153,11 +156,13 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Control',
+          l10n.t('Control'),
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w500,
-            color: isSelected ? AppColors.textSecondaryDark : AppColors.textSecondaryDark.withOpacity(0.6),
+            color: isSelected
+                ? ThemeColors.textSecondary(context)
+                : ThemeColors.textSecondary(context).withOpacity(0.6),
           ),
         ),
       ],
@@ -188,7 +193,7 @@ class _MainNavigationState extends State<MainNavigation> {
             Icon(
               isSelected ? activeIcon : icon,
               size: 24,
-              color: isSelected ? AppColors.primary : AppColors.textSecondaryDark.withOpacity(0.6),
+              color: isSelected ? AppColors.primary : ThemeColors.textSecondary(context).withOpacity(0.6),
             ),
             const SizedBox(height: 4),
             Text(
@@ -196,7 +201,7 @@ class _MainNavigationState extends State<MainNavigation> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? AppColors.primary : AppColors.textSecondaryDark.withOpacity(0.6),
+                color: isSelected ? AppColors.primary : ThemeColors.textSecondary(context).withOpacity(0.6),
               ),
             ),
           ],

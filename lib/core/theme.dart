@@ -1,5 +1,42 @@
 import 'package:flutter/material.dart';
 
+/// Theme-aware color resolver.
+///
+/// Use these instead of raw AppColors constants in screens so that
+/// light / dark mode switching works automatically.
+///
+/// Example:
+///   Scaffold(backgroundColor: ThemeColors.bg(context))
+///   Container(color: ThemeColors.surface(context))
+class ThemeColors {
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  /// Main scaffold / page background
+  static Color bg(BuildContext context) =>
+      isDark(context) ? AppColors.backgroundDark : AppColors.backgroundLight;
+
+  /// Card / container background
+  static Color surface(BuildContext context) =>
+      isDark(context) ? AppColors.surfaceDark : AppColors.surfaceLight;
+
+  /// Border / divider color
+  static Color border(BuildContext context) =>
+      isDark(context) ? AppColors.borderDark : AppColors.borderLight;
+
+  /// Primary text (headings, values)
+  static Color textPrimary(BuildContext context) =>
+      isDark(context) ? Colors.white : AppColors.textPrimaryLight;
+
+  /// Secondary / muted text
+  static Color textSecondary(BuildContext context) =>
+      isDark(context) ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+  /// Icon color for general UI icons
+  static Color icon(BuildContext context) =>
+      isDark(context) ? Colors.white : AppColors.textPrimaryLight;
+}
+
 /// App Color Palette - Smart Farm Dark Green Theme
 class AppColors {
   // Primary Colors

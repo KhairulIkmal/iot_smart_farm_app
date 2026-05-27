@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 
 /// ------------------------------------------------------------
@@ -84,19 +85,20 @@ class _EditCropScreenState extends State<EditCropScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: ThemeColors.icon(context)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Edit Crop Details',
+        title: Text(
+          l10n.t('Edit Crop Details'),
           style: TextStyle(
-            color: Colors.white,
+            color: ThemeColors.textPrimary(context),
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -111,7 +113,7 @@ class _EditCropScreenState extends State<EditCropScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Crop Image Picker
-                _buildImagePicker(),
+                _buildImagePicker(l10n),
                 const SizedBox(height: 24),
 
                 // Info Card
@@ -132,9 +134,9 @@ class _EditCropScreenState extends State<EditCropScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Update your crop information below',
+                          l10n.t('Update your crop information below'),
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
+                            color: ThemeColors.textSecondary(context).withOpacity(0.9),
                             fontSize: 14,
                           ),
                         ),
@@ -145,7 +147,7 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 const SizedBox(height: 24),
 
                 // Crop Type Dropdown
-                _buildLabel('Crop Type'),
+                _buildLabel(l10n.t('Crop Type')),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: _cropTypes.contains(_cropTypeController.text)
@@ -153,14 +155,14 @@ class _EditCropScreenState extends State<EditCropScreen> {
                       : 'Other',
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.surfaceDark,
+                    fillColor: ThemeColors.surface(context),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderDark),
+                      borderSide: BorderSide(color: ThemeColors.border(context)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderDark),
+                      borderSide: BorderSide(color: ThemeColors.border(context)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -168,8 +170,8 @@ class _EditCropScreenState extends State<EditCropScreen> {
                     ),
                     prefixIcon: const Icon(Icons.eco, color: AppColors.primary),
                   ),
-                  dropdownColor: AppColors.surfaceDark,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  dropdownColor: ThemeColors.surface(context),
+                  style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
                   items: _cropTypes.map((String crop) {
                     return DropdownMenuItem<String>(
                       value: crop,
@@ -193,27 +195,27 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 const SizedBox(height: 20),
 
                 // Field Name Input
-                _buildLabel('Field Name'),
+                _buildLabel(l10n.t('Field Name')),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _fieldNameController,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.surfaceDark,
-                    hintText: 'e.g., Field A, North Plot, etc.',
+                    fillColor: ThemeColors.surface(context),
+                    hintText: l10n.t('e.g., Field A, North Plot, etc.'),
                     hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                       fontSize: 14,
                     ),
                     prefixIcon: const Icon(Icons.location_on, color: AppColors.primary),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderDark),
+                      borderSide: BorderSide(color: ThemeColors.border(context)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderDark),
+                      borderSide: BorderSide(color: ThemeColors.border(context)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -230,18 +232,18 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 const SizedBox(height: 20),
 
                 // Notes Input
-                _buildLabel('Notes (Optional)'),
+                _buildLabel(l10n.t('Notes (Optional)')),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _notesController,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                  style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
                   maxLines: 4,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.surfaceDark,
-                    hintText: 'Add any notes about this crop...',
+                    fillColor: ThemeColors.surface(context),
+                    hintText: l10n.t('Add any notes about this crop...'),
                     hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
                       fontSize: 14,
                     ),
                     prefixIcon: const Padding(
@@ -250,11 +252,11 @@ class _EditCropScreenState extends State<EditCropScreen> {
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderDark),
+                      borderSide: BorderSide(color: ThemeColors.border(context)),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.borderDark),
+                      borderSide: BorderSide(color: ThemeColors.border(context)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -272,7 +274,7 @@ class _EditCropScreenState extends State<EditCropScreen> {
                     onPressed: _isLoading ? null : _handleUpdateCrop,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.backgroundDark,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -286,18 +288,18 @@ class _EditCropScreenState extends State<EditCropScreen> {
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.backgroundDark,
+                                Colors.white,
                               ),
                             ),
                           )
-                        : const Row(
+                        : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.check_circle, size: 24),
-                              SizedBox(width: 8),
+                              const Icon(Icons.check_circle, size: 24),
+                              const SizedBox(width: 8),
                               Text(
-                                'Update Crop',
-                                style: TextStyle(
+                                l10n.t('Update Crop'),
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -317,11 +319,11 @@ class _EditCropScreenState extends State<EditCropScreen> {
   /// ------------------------------------------------
   /// IMAGE PICKER WIDGET
   /// ------------------------------------------------
-  Widget _buildImagePicker() {
+  Widget _buildImagePicker(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel('Crop Photo (Optional)'),
+        _buildLabel(l10n.t('Crop Photo (Optional)')),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: _isUploadingImage ? null : _showImageSourceSheet,
@@ -329,18 +331,18 @@ class _EditCropScreenState extends State<EditCropScreen> {
             height: 180,
             width: double.infinity,
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _pickedImage != null || _imageUrl != null
                     ? AppColors.primary.withOpacity(0.5)
-                    : AppColors.borderDark,
+                    : ThemeColors.border(context),
                 width: 1.5,
               ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(15),
-              child: _buildImageContent(),
+              child: _buildImageContent(l10n),
             ),
           ),
         ),
@@ -350,9 +352,9 @@ class _EditCropScreenState extends State<EditCropScreen> {
             child: TextButton.icon(
               onPressed: _removeImage,
               icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
-              label: const Text(
-                'Remove photo',
-                style: TextStyle(color: AppColors.error, fontSize: 13),
+              label: Text(
+                l10n.t('Remove photo'),
+                style: const TextStyle(color: AppColors.error, fontSize: 13),
               ),
             ),
           ),
@@ -360,19 +362,19 @@ class _EditCropScreenState extends State<EditCropScreen> {
     );
   }
 
-  Widget _buildImageContent() {
+  Widget _buildImageContent(AppLocalizations l10n) {
     if (_isUploadingImage) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
+            const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
-              'Uploading...',
-              style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
+              l10n.t('Uploading...'),
+              style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
             ),
           ],
         ),
@@ -394,14 +396,14 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.edit, color: Colors.white, size: 14),
-                  SizedBox(width: 4),
+                  const Icon(Icons.edit, color: Colors.white, size: 14),
+                  const SizedBox(width: 4),
                   Text(
-                    'Change',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    l10n.t('Change'),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
               ),
@@ -419,7 +421,7 @@ class _EditCropScreenState extends State<EditCropScreen> {
           Image.network(
             _imageUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildEmptyImagePlaceholder(),
+            errorBuilder: (_, __, ___) => _buildEmptyImagePlaceholder(l10n),
           ),
           Positioned(
             right: 8,
@@ -430,14 +432,14 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.edit, color: Colors.white, size: 14),
-                  SizedBox(width: 4),
+                  const Icon(Icons.edit, color: Colors.white, size: 14),
+                  const SizedBox(width: 4),
                   Text(
-                    'Change',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    l10n.t('Change'),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
               ),
@@ -448,31 +450,31 @@ class _EditCropScreenState extends State<EditCropScreen> {
     }
 
     // Empty placeholder
-    return _buildEmptyImagePlaceholder();
+    return _buildEmptyImagePlaceholder(l10n);
   }
 
-  Widget _buildEmptyImagePlaceholder() {
+  Widget _buildEmptyImagePlaceholder(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
           Icons.add_photo_alternate_outlined,
           size: 48,
-          color: Colors.white.withOpacity(0.3),
+          color: ThemeColors.textSecondary(context).withOpacity(0.3),
         ),
         const SizedBox(height: 10),
         Text(
-          'Tap to add a photo',
+          l10n.t('Tap to add a photo'),
           style: TextStyle(
-            color: Colors.white.withOpacity(0.5),
+            color: ThemeColors.textSecondary(context).withOpacity(0.5),
             fontSize: 14,
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Camera or Gallery',
+          l10n.t('Camera or Gallery'),
           style: TextStyle(
-            color: Colors.white.withOpacity(0.3),
+            color: ThemeColors.textSecondary(context).withOpacity(0.3),
             fontSize: 12,
           ),
         ),
@@ -484,9 +486,10 @@ class _EditCropScreenState extends State<EditCropScreen> {
   /// IMAGE ACTIONS
   /// ------------------------------------------------
   void _showImageSourceSheet() {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: ThemeColors.surface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -500,15 +503,15 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Choose Photo Source',
+              Text(
+                l10n.t('Choose Photo Source'),
                 style: TextStyle(
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -523,13 +526,13 @@ class _EditCropScreenState extends State<EditCropScreen> {
                   ),
                   child: const Icon(Icons.camera_alt, color: AppColors.primary),
                 ),
-                title: const Text(
-                  'Take a Photo',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                title: Text(
+                  l10n.t('Take a Photo'),
+                  style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500),
                 ),
                 subtitle: Text(
-                  'Use your camera',
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                  l10n.t('Use your camera'),
+                  style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5), fontSize: 12),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -545,13 +548,13 @@ class _EditCropScreenState extends State<EditCropScreen> {
                   ),
                   child: const Icon(Icons.photo_library, color: AppColors.primary),
                 ),
-                title: const Text(
-                  'Choose from Gallery',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                title: Text(
+                  l10n.t('Choose from Gallery'),
+                  style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500),
                 ),
                 subtitle: Text(
-                  'Pick from your photos',
-                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                  l10n.t('Pick from your photos'),
+                  style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5), fontSize: 12),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -608,8 +611,8 @@ class _EditCropScreenState extends State<EditCropScreen> {
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: ThemeColors.textPrimary(context),
         fontSize: 14,
         fontWeight: FontWeight.w600,
       ),
@@ -647,13 +650,14 @@ class _EditCropScreenState extends State<EditCropScreen> {
       await _firestore.collection('crops').doc(widget.cropId).update(updateData);
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Crop updated successfully'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(l10n.t('Crop updated successfully')),
               ],
             ),
             backgroundColor: AppColors.success,

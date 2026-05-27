@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../core/constants.dart';
+import '../core/app_localizations.dart';
 import 'register_screen.dart';
 import 'auth_service.dart';
 
@@ -93,7 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
-      _showErrorSnackBar('Please enter your email address first');
+      final l10n = AppLocalizations.of(context);
+      _showErrorSnackBar(l10n.t('Please enter your email address first'));
       return;
     }
 
@@ -144,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -194,23 +196,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildWelcomeText() {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
-        const Text(
-          'Welcome Back',
+        Text(
+          l10n.t('Welcome Back'),
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: ThemeColors.textPrimary(context),
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Monitor your crops and control irrigation from\nanywhere.',
+          l10n.t('Monitor your crops and control irrigation from\nanywhere.'),
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            color: Colors.white.withOpacity(0.7),
+            color: ThemeColors.textSecondary(context).withOpacity(0.7),
             height: 1.5,
           ),
         ),
@@ -229,17 +232,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _emailField() {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      style: const TextStyle(color: Colors.white),
-      decoration: _inputDecoration('Email address', 'farmer@example.com'),
+      style: TextStyle(color: ThemeColors.textPrimary(context)),
+      decoration: _inputDecoration(l10n.t('Email address'), l10n.t('farmer@example.com')),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return AppStrings.fieldRequired;
+          return l10n.t(AppStrings.fieldRequired);
         }
         if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-          return AppStrings.invalidEmail;
+          return l10n.t(AppStrings.invalidEmail);
         }
         return null;
       },
@@ -247,17 +251,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _passwordField() {
+    final l10n = AppLocalizations.of(context);
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: ThemeColors.textPrimary(context)),
       decoration: _inputDecoration(
-        'Password',
+        l10n.t('Password'),
         '••••••••',
         suffix: IconButton(
           icon: Icon(
             _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: Colors.white.withOpacity(0.5),
+            color: ThemeColors.textSecondary(context).withOpacity(0.5),
           ),
           onPressed: () {
             setState(() {
@@ -268,10 +273,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return AppStrings.fieldRequired;
+          return l10n.t(AppStrings.fieldRequired);
         }
         if (value.length < 6) {
-          return AppStrings.invalidPassword;
+          return l10n.t(AppStrings.invalidPassword);
         }
         return null;
       },
@@ -285,17 +290,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+      hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3)),
       filled: true,
-      fillColor: AppColors.surfaceDark,
+      fillColor: ThemeColors.surface(context),
       suffixIcon: suffix,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.borderDark),
+        borderSide: BorderSide(color: ThemeColors.border(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.borderDark),
+        borderSide: BorderSide(color: ThemeColors.border(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -310,13 +315,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildForgotPassword() {
+    final l10n = AppLocalizations.of(context);
     return Align(
       alignment: Alignment.centerRight,
       child: TextButton(
         onPressed: _forgotPassword,
-        child: const Text(
-          'Forgot password?',
-          style: TextStyle(
+        child: Text(
+          l10n.t('Forgot password?'),
+          style: const TextStyle(
             fontSize: 14,
             color: AppColors.primary,
             fontWeight: FontWeight.w500,
@@ -342,23 +348,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 24,
                 child: CircularProgressIndicator(strokeWidth: 2.5),
               )
-            : const Text('Sign in'),
+            : Text(AppLocalizations.of(context).t('Sign in')),
       ),
     );
   }
 
   Widget _buildDivider() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       children: [
-        Expanded(child: Container(height: 1, color: AppColors.borderDark)),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
+        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Or continue with',
-            style: TextStyle(color: Colors.white54),
+            l10n.t('Or continue with'),
+            style: TextStyle(color: ThemeColors.textSecondary(context)),
           ),
         ),
-        Expanded(child: Container(height: 1, color: AppColors.borderDark)),
+        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
       ],
     );
   }
@@ -371,24 +378,25 @@ class _LoginScreenState extends State<LoginScreen> {
         onPressed: _isGoogleLoading ? null : _signInWithGoogle,
         child: _isGoogleLoading
             ? const CircularProgressIndicator()
-            : const Text('Sign in with Google'),
+            : Text(AppLocalizations.of(context).t('Sign in with Google')),
       ),
     );
   }
 
   Widget _buildCreateAccountLink() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text(
-          "Don't have an account? ",
-          style: TextStyle(color: Colors.white70),
+        Text(
+          l10n.t("Don't have an account? "),
+          style: TextStyle(color: ThemeColors.textSecondary(context)),
         ),
         GestureDetector(
           onTap: _navigateToRegister,
-          child: const Text(
-            'Create an account',
-            style: TextStyle(
+          child: Text(
+            l10n.t('Create an account'),
+            style: const TextStyle(
               fontWeight: FontWeight.w600,
               color: AppColors.primary,
             ),

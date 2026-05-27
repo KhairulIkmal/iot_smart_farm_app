@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 import '../../core/theme.dart';
+import '../../core/app_localizations.dart';
 import '../../services/claude_service.dart';
 import '../../services/rtdb_service.dart';
 import '../../services/selected_crop_service.dart';
@@ -305,8 +306,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   Widget _buildSuggestedQuestions(StateSetter setSheetState) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        border: Border(top: BorderSide(color: AppColors.borderDark)),
+        color: ThemeColors.surface(context),
+        border: Border(top: BorderSide(color: ThemeColors.border(context))),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       child: Column(
@@ -315,9 +316,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 6),
             child: Text(
-              'Suggested',
+              AppLocalizations.of(context).t('Suggested'),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
+                color: ThemeColors.textSecondary(context).withOpacity(0.4),
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.5,
@@ -371,9 +372,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           minChildSize: 0.5,
           builder: (context, scrollController) {
             return Container(
-              decoration: const BoxDecoration(
-                color: AppColors.backgroundDark,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              decoration: BoxDecoration(
+                color: ThemeColors.bg(context),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
                 children: [
@@ -383,7 +384,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.borderDark,
+                      color: ThemeColors.border(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -408,10 +409,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'AI Farm Advisor',
+                            Text(
+                              AppLocalizations.of(context).t('AI Farm Advisor'),
                               style: TextStyle(
-                                color: Colors.white,
+                                color: ThemeColors.textPrimary(context),
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -419,7 +420,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                             Text(
                               'Powered by Claude AI • $_selectedCrop',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
+                                color: ThemeColors.textSecondary(context).withOpacity(0.5),
                                 fontSize: 12,
                               ),
                             ),
@@ -428,7 +429,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       ],
                     ),
                   ),
-                  Divider(color: AppColors.borderDark, height: 1),
+                  Divider(color: ThemeColors.border(context), height: 1),
                   // Messages
                   Expanded(
                     child: ListView.builder(
@@ -460,9 +461,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       bottom: MediaQuery.of(context).viewInsets.bottom + 16,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceDark,
+                      color: ThemeColors.surface(context),
                       border: Border(
-                        top: BorderSide(color: AppColors.borderDark),
+                        top: BorderSide(color: ThemeColors.border(context)),
                       ),
                     ),
                     child: Row(
@@ -470,14 +471,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         Expanded(
                           child: TextField(
                             controller: _chatController,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: ThemeColors.textPrimary(context)),
                             decoration: InputDecoration(
                               hintText: 'Ask about your $_selectedCrop...',
                               hintStyle: TextStyle(
-                                color: Colors.white.withOpacity(0.4),
+                                color: ThemeColors.textSecondary(context).withOpacity(0.4),
                               ),
                               filled: true,
-                              fillColor: AppColors.backgroundDark,
+                              fillColor: ThemeColors.bg(context),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -505,9 +506,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.send_rounded,
-                              color: AppColors.backgroundDark,
+                              color: ThemeColors.bg(context),
                               size: 20,
                             ),
                           ),
@@ -534,20 +535,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isUser ? AppColors.primary : AppColors.surfaceDark,
+          color: isUser ? AppColors.primary : ThemeColors.surface(context),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
             bottomLeft: Radius.circular(isUser ? 16 : 4),
             bottomRight: Radius.circular(isUser ? 4 : 16),
           ),
-          border: isUser ? null : Border.all(color: AppColors.borderDark),
+          border: isUser ? null : Border.all(color: ThemeColors.border(context)),
         ),
         child: isUser
             ? Text(
                 text,
-                style: const TextStyle(
-                  color: AppColors.backgroundDark,
+                style: TextStyle(
+                  color: ThemeColors.bg(context),
                   fontSize: 14,
                   height: 1.4,
                 ),
@@ -644,7 +645,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       if (match.start > last) {
         spans.add(TextSpan(
           text: text.substring(last, match.start),
-          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 14, height: 1.5),
         ));
       }
       final raw = match.group(0)!;
@@ -662,8 +663,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       } else {
         spans.add(TextSpan(
           text: raw.substring(1, raw.length - 1),
-          style: const TextStyle(
-            color: Colors.white70,
+          style: TextStyle(
+            color: ThemeColors.textSecondary(context),
             fontSize: 14,
             fontStyle: FontStyle.italic,
             height: 1.5,
@@ -676,7 +677,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     if (last < text.length) {
       spans.add(TextSpan(
         text: text.substring(last),
-        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 14, height: 1.5),
       ));
     }
 
@@ -703,14 +704,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceDark,
+          color: ThemeColors.surface(context),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
             bottomRight: Radius.circular(16),
             bottomLeft: Radius.circular(4),
           ),
-          border: Border.all(color: AppColors.borderDark),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -725,9 +726,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              'Analyzing your farm...',
+              AppLocalizations.of(context).t('Analyzing your farm...'),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
                 fontSize: 13,
               ),
             ),
@@ -775,7 +776,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -803,26 +804,27 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'AI Assistant',
+            Text(
+              l10n.t('AI Assistant'),
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: ThemeColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              'Smart Crop Recommendations',
+              l10n.t('Smart Crop Recommendations'),
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.white.withOpacity(0.5),
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
               ),
             ),
           ],
@@ -836,14 +838,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.primary.withOpacity(0.4)),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 18),
-                SizedBox(width: 6),
+                const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 18),
+                const SizedBox(width: 6),
                 Text(
-                  'Ask AI',
-                  style: TextStyle(
+                  l10n.t('Ask AI'),
+                  style: const TextStyle(
                     color: AppColors.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -858,12 +860,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Widget _buildCropSelectorCard() {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -872,37 +875,37 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             children: [
               const Icon(Icons.eco, color: AppColors.primary, size: 22),
               const SizedBox(width: 8),
-              const Text(
-                'Select Crop',
+              Text(
+                l10n.t('Select Crop'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Vegetable Type',
+            l10n.t('Vegetable Type'),
             style: TextStyle(
               fontSize: 13,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: AppColors.backgroundDark,
+              color: ThemeColors.bg(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedCrop,
                 isExpanded: true,
-                dropdownColor: AppColors.surfaceDark,
+                dropdownColor: ThemeColors.surface(context),
                 icon: const Icon(
                   Icons.keyboard_arrow_down,
                   color: AppColors.textSecondaryDark,
@@ -920,8 +923,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         const SizedBox(width: 10),
                         Text(
                           crop,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: ThemeColors.textPrimary(context),
                             fontSize: 16,
                           ),
                         ),
@@ -944,7 +947,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             child: OutlinedButton(
               onPressed: _isLoading ? null : _getRecommendations,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.borderDark),
+                side: BorderSide(color: ThemeColors.border(context)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -960,12 +963,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         ),
                       ),
                     )
-                  : const Text(
-                      'Get Recommendations',
+                  : Text(
+                      l10n.t('Get Recommendations'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: ThemeColors.textPrimary(context),
                       ),
                     ),
             ),
@@ -977,13 +980,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Widget _buildOptimalSettingsCard() {
     if (_recommendations == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -996,12 +1000,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 size: 22,
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Optimal Settings',
+              Text(
+                l10n.t('Optimal Settings'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: ThemeColors.textPrimary(context),
                 ),
               ),
             ],
@@ -1013,7 +1017,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 child: _buildSettingTile(
                   icon: Icons.water_drop,
                   iconColor: AppColors.soilMoisture,
-                  label: 'Moisture Range',
+                  label: l10n.t('Moisture Range'),
                   value:
                       '${_recommendations!['moistureMin']} - ${_recommendations!['moistureMax']}%',
                 ),
@@ -1023,7 +1027,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 child: _buildSettingTile(
                   icon: Icons.science,
                   iconColor: AppColors.phLevel,
-                  label: 'Ideal pH',
+                  label: l10n.t('Ideal pH'),
                   value:
                       '${_recommendations!['phMin']} - ${_recommendations!['phMax']}',
                 ),
@@ -1037,7 +1041,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 child: _buildSettingTile(
                   icon: Icons.wb_sunny,
                   iconColor: AppColors.warning,
-                  label: 'Best Time',
+                  label: l10n.t('Best Time'),
                   value: _recommendations!['bestTime'],
                 ),
               ),
@@ -1046,7 +1050,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 child: _buildSettingTile(
                   icon: Icons.calendar_today,
                   iconColor: AppColors.primary,
-                  label: 'Frequency',
+                  label: l10n.t('Frequency'),
                   value: _recommendations!['frequency'],
                 ),
               ),
@@ -1066,7 +1070,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.backgroundDark,
+        color: ThemeColors.bg(context),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1076,7 +1080,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.white.withOpacity(0.5),
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
           ),
           const SizedBox(height: 8),
@@ -1087,10 +1091,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               Flexible(
                 child: Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: ThemeColors.textPrimary(context),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1133,6 +1137,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Widget _buildAskAiBanner() {
+    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: _openChatPanel,
       child: Container(
@@ -1157,19 +1162,19 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Have questions about your crop?',
+                  Text(
+                    l10n.t('Have questions about your crop?'),
                     style: TextStyle(
-                      color: Colors.white,
+                      color: ThemeColors.textPrimary(context),
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Chat with your AI farm advisor',
+                    l10n.t('Chat with your AI farm advisor'),
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
                       fontSize: 12,
                     ),
                   ),
@@ -1191,20 +1196,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         onPressed: _applyToIrrigation,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.backgroundDark,
+          foregroundColor: ThemeColors.bg(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 0,
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline, size: 22),
-            SizedBox(width: 8),
+            const Icon(Icons.check_circle_outline, size: 22),
+            const SizedBox(width: 8),
             Text(
-              'Apply to Auto-Irrigation',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              AppLocalizations.of(context).t('Apply to Auto-Irrigation'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -1214,9 +1219,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Future<void> _applyToIrrigation() async {
     if (_recommendations == null || _userCropId == null) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('No crop selected'),
+          content: Text(l10n.t('No crop selected')),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -1253,9 +1259,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
       if (mounted) {
         // Show success message
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Settings applied! Redirecting to irrigation...'),
+            content: Text(l10n.t('Settings applied! Redirecting to irrigation...')),
             backgroundColor: AppColors.primary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

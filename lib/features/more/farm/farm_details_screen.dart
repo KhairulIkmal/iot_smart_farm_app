@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 import '../../../services/user_counter_service.dart';
 
@@ -111,13 +112,14 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
       });
 
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
-                Text('Farm details saved'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(l10n.t('Farm details saved')),
               ],
             ),
             backgroundColor: AppColors.primary,
@@ -144,12 +146,13 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final user = _auth.currentUser;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: ThemeColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: ThemeColors.bg(context),
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -158,21 +161,21 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: ThemeColors.surface(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderDark),
+                border: Border.all(color: ThemeColors.border(context)),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: ThemeColors.icon(context),
                 size: 24,
               ),
             ),
           ),
         ),
-        title: const Text(
-          'Farm Details',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.t('Farm Details'),
+          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
       ),
       body: _isLoading
@@ -189,11 +192,11 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Farm Info Section
-                    _buildSectionTitle('Farm Information'),
+                    _buildSectionTitle(l10n.t('Farm Information')),
                     const SizedBox(height: 16),
                     _buildTextField(
                       controller: _farmNameController,
-                      label: 'Farm Name',
+                      label: l10n.t('Farm Name'),
                       icon: Icons.agriculture,
                       validator: (v) =>
                           v?.isEmpty ?? true ? 'Farm name is required' : null,
@@ -201,22 +204,22 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                     const SizedBox(height: 16),
                     _buildTextField(
                       controller: _farmSizeController,
-                      label: 'Farm Size (acres)',
+                      label: l10n.t('Farm Size (acres)'),
                       icon: Icons.landscape,
                       keyboardType: TextInputType.number,
                     ),
                     const SizedBox(height: 32),
 
                     // Active Crops Section
-                    _buildSectionTitle('Active Crops'),
+                    _buildSectionTitle(l10n.t('Active Crops')),
                     const SizedBox(height: 16),
-                    _buildCropsList(user?.uid),
+                    _buildCropsList(user?.uid, l10n),
                     const SizedBox(height: 32),
 
                     // Connected Devices Section
-                    _buildSectionTitle('Connected Devices'),
+                    _buildSectionTitle(l10n.t('Connected Devices')),
                     const SizedBox(height: 16),
-                    _buildDevicesList(user?.uid),
+                    _buildDevicesList(user?.uid, l10n),
                     const SizedBox(height: 32),
 
                     // Save Button
@@ -243,9 +246,9 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                                   ),
                                 ),
                               )
-                            : const Text(
-                                'Save Changes',
-                                style: TextStyle(
+                            : Text(
+                                l10n.t('Save Changes'),
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -265,7 +268,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: Colors.white.withOpacity(0.5),
+        color: ThemeColors.textSecondary(context).withOpacity(0.5),
         letterSpacing: 1,
       ),
     );
@@ -280,18 +283,18 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         validator: validator,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+          labelStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5)),
           prefixIcon: Icon(icon, color: AppColors.primary),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(16),
@@ -300,7 +303,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
     );
   }
 
-  Widget _buildCropsList(String? userId) {
+  Widget _buildCropsList(String? userId, AppLocalizations l10n) {
     if (userId == null) return const SizedBox.shrink();
 
     return StreamBuilder<QuerySnapshot>(
@@ -314,22 +317,22 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
           return Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.eco_outlined,
-                  color: Colors.white.withOpacity(0.3),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.3),
                   size: 32,
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  'No active crops',
+                  l10n.t('No active crops'),
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     fontSize: 16,
                   ),
                 ),
@@ -340,9 +343,9 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
 
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
             children: snapshot.data!.docs.map((doc) {
@@ -373,17 +376,17 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                         children: [
                           Text(
                             cropType,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                           Text(
                             'Device: $deviceId',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.5),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
                             ),
                           ),
                         ],
@@ -417,7 +420,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
     );
   }
 
-  Widget _buildDevicesList(String? userId) {
+  Widget _buildDevicesList(String? userId, AppLocalizations l10n) {
     if (userId == null) return const SizedBox.shrink();
 
     return StreamBuilder<QuerySnapshot>(
@@ -430,22 +433,22 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
           return Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: ThemeColors.surface(context),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.borderDark),
+              border: Border.all(color: ThemeColors.border(context)),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.devices_outlined,
-                  color: Colors.white.withOpacity(0.3),
+                  color: ThemeColors.textSecondary(context).withOpacity(0.3),
                   size: 32,
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  'No devices connected',
+                  l10n.t('No devices connected'),
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
                     fontSize: 16,
                   ),
                 ),
@@ -463,9 +466,9 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
 
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceDark,
+            color: ThemeColors.surface(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderDark),
+            border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
             children: deviceIds.map((deviceId) {
@@ -492,17 +495,17 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
                         children: [
                           Text(
                             deviceId.toString(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: ThemeColors.textPrimary(context),
                             ),
                           ),
                           Text(
-                            'ESP32 Controller',
+                            l10n.t('ESP32 Controller'),
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.white.withOpacity(0.5),
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
                             ),
                           ),
                         ],
