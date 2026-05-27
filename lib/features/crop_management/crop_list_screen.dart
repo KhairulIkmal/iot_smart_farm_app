@@ -505,6 +505,7 @@ class _CropListScreenState extends State<CropListScreen> {
                 final fieldName = data['field_name'] as String? ?? 'Field A';
                 final notes = data['notes'] as String? ?? '';
                 final imageUrl = data['image_url'] as String?;
+                final growthStage = data['growth_stage'] as String?;
 
                 return _buildCropCard(
                   cropId: cropId,
@@ -514,6 +515,7 @@ class _CropListScreenState extends State<CropListScreen> {
                   fieldName: fieldName,
                   notes: notes,
                   imageUrl: imageUrl,
+                  growthStage: growthStage,
                   l10n: l10n,
                 );
               }).toList(),
@@ -532,6 +534,7 @@ class _CropListScreenState extends State<CropListScreen> {
     required String fieldName,
     required String notes,
     String? imageUrl,
+    String? growthStage,
     required AppLocalizations l10n,
   }) {
     return GestureDetector(
@@ -621,6 +624,20 @@ class _CropListScreenState extends State<CropListScreen> {
                           ],
                         ),
                       ),
+                      if (growthStage != null) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black26,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            _getStageLabel(growthStage),
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       // Crop Name & Actions
                       Row(
@@ -898,6 +915,17 @@ class _CropListScreenState extends State<CropListScreen> {
         return Icons.spa;
       default:
         return Icons.eco;
+    }
+  }
+
+  String _getStageLabel(String stage) {
+    switch (stage) {
+      case 'seedling': return '🌱 Seedling';
+      case 'vegetative': return '🌿 Vegetative';
+      case 'flowering': return '🌸 Flowering';
+      case 'fruiting': return '🍅 Fruiting';
+      case 'ready': return '✅ Ready';
+      default: return stage;
     }
   }
 }

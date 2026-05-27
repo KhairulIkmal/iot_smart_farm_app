@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 
 import '../../../core/app_localizations.dart';
 import '../../../core/theme.dart';
 import '../../../services/user_counter_service.dart';
+import '../../crop_management/crop_detail_screen.dart';
 
 /// ------------------------------------------------------------
 /// FARM DETAILS SCREEN
@@ -341,6 +345,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
           );
         }
 
+        final docs = snapshot.data!.docs;
         return Container(
           decoration: BoxDecoration(
             color: ThemeColors.surface(context),
@@ -348,70 +353,96 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
             border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
-            children: snapshot.data!.docs.map((doc) {
+            children: docs.asMap().entries.map((entry) {
+              final index = entry.key;
+              final doc = entry.value;
               final data = doc.data() as Map<String, dynamic>;
-              final cropType = data['crop_type'] ?? 'Unknown';
-              final deviceId = data['device_id'] ?? 'N/A';
+              final cropType = data['crop_type'] as String? ?? 'Unknown';
+              final fieldName = data['field_name'] as String? ?? '';
+              final deviceId = data['device_id'] as String? ?? 'N/A';
+              final growthStage = data['growth_stage'] as String?;
+              final isLast = index == docs.length - 1;
 
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.eco,
-                        color: AppColors.primary,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            cropType,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: ThemeColors.textPrimary(context),
-                            ),
-                          ),
-                          Text(
-                            'Device: $deviceId',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Active',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+              return Column(
+                children: [
+                  InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CropDetailScreen(
+                          cropId: doc.id,
+                          cropType: cropType,
+                          deviceId: deviceId,
+                          fieldName: fieldName,
+                          notes: data['notes'] as String? ?? '',
+                          imageUrl: data['image_url'] as String?,
+                          plantingDate: data['createdAt'] as Timestamp?,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.eco, color: AppColors.primary, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      cropType,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: ThemeColors.textPrimary(context),
+                                      ),
+                                    ),
+                                    if (growthStage != null) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          _stageLabel(growthStage),
+                                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.primary),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  fieldName.isNotEmpty ? fieldName : deviceId,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, color: ThemeColors.icon(context).withOpacity(0.3), size: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (!isLast)
+                    Divider(height: 1, color: ThemeColors.border(context), indent: 60),
+                ],
               );
             }).toList(),
           ),
@@ -427,6 +458,7 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
       stream: _firestore
           .collection('crops')
           .where('farmer_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'active')
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -457,10 +489,11 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
           );
         }
 
-        // Get unique device IDs
+        // Unique device IDs from active crops only
         final deviceIds = snapshot.data!.docs
-            .map((doc) => (doc.data() as Map<String, dynamic>)['device_id'])
+            .map((doc) => (doc.data() as Map<String, dynamic>)['device_id'] as String?)
             .where((id) => id != null)
+            .cast<String>()
             .toSet()
             .toList();
 
@@ -471,67 +504,139 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
             border: Border.all(color: ThemeColors.border(context)),
           ),
           child: Column(
-            children: deviceIds.map((deviceId) {
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.info.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.developer_board,
-                        color: AppColors.info,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            deviceId.toString(),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: ThemeColors.textPrimary(context),
-                            ),
-                          ),
-                          Text(
-                            l10n.t('ESP32 Controller'),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withOpacity(0.5),
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+            children: deviceIds.asMap().entries.map((entry) {
+              final index = entry.key;
+              final deviceId = entry.value;
+              final isLast = index == deviceIds.length - 1;
+              return Column(
+                children: [
+                  _DeviceStatusRow(deviceId: deviceId, l10n: l10n),
+                  if (!isLast)
+                    Divider(height: 1, color: ThemeColors.border(context), indent: 60),
+                ],
               );
             }).toList(),
           ),
         );
       },
+    );
+  }
+
+  String _stageLabel(String stage) {
+    switch (stage) {
+      case 'seedling': return '🌱 Seedling';
+      case 'vegetative': return '🌿 Vegetative';
+      case 'flowering': return '🌸 Flowering';
+      case 'fruiting': return '🍅 Fruiting';
+      case 'ready': return '✅ Ready';
+      default: return stage;
+    }
+  }
+}
+
+/// Stateful row that shows real online/offline status from RTDB
+class _DeviceStatusRow extends StatefulWidget {
+  final String deviceId;
+  final AppLocalizations l10n;
+
+  const _DeviceStatusRow({required this.deviceId, required this.l10n});
+
+  @override
+  State<_DeviceStatusRow> createState() => _DeviceStatusRowState();
+}
+
+class _DeviceStatusRowState extends State<_DeviceStatusRow> {
+  bool _isOnline = false;
+  StreamSubscription<DatabaseEvent>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = FirebaseDatabase.instance
+        .ref('sensors/${widget.deviceId}/live/lastSeen')
+        .onValue
+        .listen((event) {
+      if (!mounted) return;
+      final val = event.snapshot.value;
+      bool online = false;
+      if (val != null) {
+        final ms = (val as num).toInt();
+        final diff = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ms));
+        online = diff.inSeconds < 10;
+      }
+      setState(() => _isOnline = online);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.info.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.developer_board, color: AppColors.info, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.deviceId,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: ThemeColors.textPrimary(context),
+                  ),
+                ),
+                Text(
+                  widget.l10n.t('ESP32 Controller'),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _isOnline ? AppColors.primary : AppColors.error,
+                  shape: BoxShape.circle,
+                  boxShadow: _isOnline
+                      ? [BoxShadow(color: AppColors.primary.withOpacity(0.5), blurRadius: 6)]
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _isOnline ? 'Online' : 'Offline',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: _isOnline ? AppColors.primary : AppColors.error,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

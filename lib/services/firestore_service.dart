@@ -516,4 +516,61 @@ class FirestoreService {
 
     return batch.commit();
   }
+
+  // ============================================================
+  // CROP LIFECYCLE / THRESHOLD / NOTES / HARVEST OPERATIONS
+  // ============================================================
+
+  Future<void> updateCropLifecycle(String cropId, {
+    DateTime? plantingDate,
+    DateTime? expectedHarvestDate,
+    String? growthStage,
+  }) {
+    final data = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
+    if (plantingDate != null) data['planting_date'] = Timestamp.fromDate(plantingDate);
+    if (expectedHarvestDate != null) data['expected_harvest_date'] = Timestamp.fromDate(expectedHarvestDate);
+    if (growthStage != null) data['growth_stage'] = growthStage;
+    return _firestore.collection('crops').doc(cropId).update(data);
+  }
+
+  Future<void> updateCropThresholds(String cropId, {
+    double? soilMin, double? soilMax,
+    double? phMin, double? phMax,
+    double? tempMin, double? tempMax,
+    bool clearCustom = false,
+  }) {
+    if (clearCustom) {
+      return _firestore.collection('crops').doc(cropId).update({
+        'custom_soil_min': FieldValue.delete(),
+        'custom_soil_max': FieldValue.delete(),
+        'custom_ph_min': FieldValue.delete(),
+        'custom_ph_max': FieldValue.delete(),
+        'custom_temp_min': FieldValue.delete(),
+        'custom_temp_max': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    final data = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
+    if (soilMin != null) data['custom_soil_min'] = soilMin;
+    if (soilMax != null) data['custom_soil_max'] = soilMax;
+    if (phMin != null) data['custom_ph_min'] = phMin;
+    if (phMax != null) data['custom_ph_max'] = phMax;
+    if (tempMin != null) data['custom_temp_min'] = tempMin;
+    if (tempMax != null) data['custom_temp_max'] = tempMax;
+    return _firestore.collection('crops').doc(cropId).update(data);
+  }
+
+  Future<void> addCropNote(String cropId, Map<String, dynamic> noteMap) {
+    return _firestore.collection('crops').doc(cropId).update({
+      'crop_notes': FieldValue.arrayUnion([noteMap]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> addHarvestEntry(String cropId, Map<String, dynamic> entryMap) {
+    return _firestore.collection('crops').doc(cropId).update({
+      'harvest_log': FieldValue.arrayUnion([entryMap]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 }
