@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +13,7 @@ import '../../services/live_sensor_service.dart';
 import '../../services/weather_service.dart';
 import '../../services/notifications/notification_service.dart';
 import '../../services/selected_crop_service.dart';
+import '../../services/user_counter_service.dart';
 import '../weather/weather_forecast_screen.dart';
 import '../analytics/sensor_graph_screen.dart';
 import '../more/notifications/notifications_screen.dart';
@@ -39,6 +41,70 @@ import '../more/notifications/notifications_screen.dart';
 /// - Sensor Grid (Soil Moisture, pH, Temp, Humidity)
 /// - Water Tank Level
 /// ------------------------------------------------------------
+/// Counts up from previous value to new value whenever [value] changes.
+class _AnimatedSensorValue extends StatefulWidget {
+  final double value;
+  final String Function(double) formatter;
+  final TextStyle style;
+
+  const _AnimatedSensorValue({
+    required this.value,
+    required this.formatter,
+    required this.style,
+  });
+
+  @override
+  State<_AnimatedSensorValue> createState() => _AnimatedSensorValueState();
+}
+
+class _AnimatedSensorValueState extends State<_AnimatedSensorValue>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+  double _from = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _anim = Tween<double>(begin: 0, end: widget.value).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedSensorValue old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value) {
+      _from = _anim.value;
+      _anim = Tween<double>(begin: _from, end: widget.value).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+      );
+      _ctrl
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Text(widget.formatter(_anim.value), style: widget.style),
+    );
+  }
+}
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -46,7 +112,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with TickerProviderStateMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final WeatherService _weatherService = WeatherService();
@@ -61,6 +127,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   WeatherForecast? _weatherForecast;
   bool _isLoadingWeather = true;
   String? _weatherError;
+  String _farmLocationName = '';
 
   // Stream subscription for crop selection
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
@@ -81,9 +148,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, String> _sensorHealth = {};
   bool _isOnline = false;
 
+  // Pulse animation for online/offline badge
+  AnimationController? _pulseController;
+  Animation<double>? _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController!, curve: Curves.easeInOut),
+    );
 
     // Initialize with currently selected crop if any
     final currentSelection = _selectedCropService.selectedCrop;
@@ -194,6 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _pulseController?.dispose();
     _cropSelectionSubscription?.cancel();
     _sensorSubscription?.cancel();
     _cropsSubscription?.cancel();
@@ -208,6 +287,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     try {
+      // Load saved farm location address from Firestore
+      final user = _auth.currentUser;
+      if (user != null) {
+        final userDoc = await UserCounterService().getUserByAuthUid(user.uid);
+        if (userDoc != null && userDoc.exists) {
+          final locationDoc = await _firestore
+              .collection('users')
+              .doc(userDoc.id)
+              .collection('farm')
+              .doc('location')
+              .get();
+          if (locationDoc.exists) {
+            final addr = locationDoc.data()?['address'] as String? ?? '';
+            if (addr.isNotEmpty) {
+              _farmLocationName = addr.split(',').first.trim();
+            }
+          }
+        }
+      }
+
       final weather = await _weatherService.getCurrentWeather();
       final forecast = await _weatherService.getWeatherForecast();
       setState(() {
@@ -245,6 +344,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 // Overview Section
                 _buildOverviewHeader(l10n),
+                const SizedBox(height: 16),
+
+                // Farm Health Score
+                _buildFarmHealthCard(l10n),
                 const SizedBox(height: 16),
 
                 // Weather Card (Live from OpenWeather API)
@@ -326,7 +429,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: AppColors.primary.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.agriculture, color: AppColors.primary, size: 32),
+                  child: const FaIcon(FontAwesomeIcons.tractor, color: AppColors.primary, size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -364,7 +467,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                 ),
-                const Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 28),
+                const FaIcon(FontAwesomeIcons.chevronDown, color: AppColors.primary, size: 18),
               ],
             ),
           ),
@@ -481,10 +584,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               color: AppColors.primary.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              Icons.agriculture,
+                            child: const FaIcon(
+                              FontAwesomeIcons.tractor,
                               color: AppColors.primary,
-                              size: 24,
+                              size: 20,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -504,9 +607,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    Icon(
-                                      Icons.developer_board,
-                                      size: 14,
+                                    FaIcon(
+                                      FontAwesomeIcons.microchip,
+                                      size: 12,
                                       color: ThemeColors.textSecondary(context).withOpacity(0.5),
                                     ),
                                     const SizedBox(width: 4),
@@ -524,10 +627,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           // Selected indicator
                           if (isSelected)
-                            const Icon(
-                              Icons.check_circle,
+                            const FaIcon(
+                              FontAwesomeIcons.circleCheck,
                               color: AppColors.primary,
-                              size: 24,
+                              size: 20,
                             ),
                         ],
                       ),
@@ -564,23 +667,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isOnline ? AppColors.primary : AppColors.error,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: isOnline
-                      ? AppColors.primary.withOpacity(0.5)
-                      : AppColors.error.withOpacity(0.5),
-                  blurRadius: 6,
-                  spreadRadius: 2,
+          _pulseAnimation != null
+              ? AnimatedBuilder(
+                  animation: _pulseAnimation!,
+                  builder: (context, _) {
+                    final dotColor = isOnline ? AppColors.primary : AppColors.error;
+                    final v = _pulseAnimation!.value;
+                    return Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: dotColor.withOpacity(v),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: dotColor.withOpacity(v * 0.6),
+                            blurRadius: 6 * v,
+                            spreadRadius: 2 * v,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                )
+              : Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: isOnline ? AppColors.primary : AppColors.error,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ],
-            ),
-          ),
           const SizedBox(width: 6),
           Text(
             isOnline ? l10n.t('ONLINE') : l10n.t('OFFLINE'),
@@ -660,10 +777,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             child: Stack(
               children: [
-                Icon(
-                  Icons.notifications_outlined,
+                FaIcon(
+                  FontAwesomeIcons.bell,
                   color: ThemeColors.icon(context),
-                  size: 22,
+                  size: 18,
                 ),
                 if (_unreadCount > 0)
                   Positioned(
@@ -779,9 +896,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: ThemeColors.surface(context),
+          gradient: _getWeatherCardGradient(weather),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: ThemeColors.border(context)),
+          border: Border.all(color: ThemeColors.border(context).withOpacity(0.4)),
         ),
         child: Column(
           children: [
@@ -831,15 +948,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(
-                            Icons.location_on,
-                            size: 14,
+                          FaIcon(
+                            FontAwesomeIcons.locationDot,
+                            size: 12,
                             color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
-                              weather.cityName,
+                              _farmLocationName.isNotEmpty ? _farmLocationName : weather.cityName,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: ThemeColors.textSecondary(context).withOpacity(0.5),
@@ -848,9 +965,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Icon(
-                            Icons.air,
-                            size: 14,
+                          FaIcon(
+                            FontAwesomeIcons.wind,
+                            size: 12,
                             color: ThemeColors.textSecondary(context).withOpacity(0.5),
                           ),
                           const SizedBox(width: 4),
@@ -896,9 +1013,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 14,
+                        FaIcon(
+                          FontAwesomeIcons.clock,
+                          size: 12,
                           color: ThemeColors.textSecondary(context).withOpacity(0.5),
                         ),
                         const SizedBox(width: 6),
@@ -939,6 +1056,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  LinearGradient _getWeatherCardGradient(WeatherData weather) {
+    final hour = weather.localTime.hour;
+    final main = weather.main.toLowerCase();
+
+    // Base colours by time of day
+    if (hour >= 20 || hour < 6) {
+      // Night
+      if (main.contains('thunder')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF12102A), Color(0xFF1A1535)]);
+      if (main.contains('rain') || main.contains('drizzle')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0D1825), Color(0xFF121E30)]);
+      return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0D1535), Color(0xFF121A3A)]);
+    }
+    if (hour < 12) {
+      // Morning
+      if (main.contains('rain') || main.contains('thunder')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF151E2A), Color(0xFF1A2535)]);
+      if (main.contains('cloud')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A2030), Color(0xFF1E2838)]);
+      return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A1A10), Color(0xFF252510)]);
+    }
+    if (hour < 17) {
+      // Afternoon
+      if (main.contains('rain') || main.contains('thunder')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF131E2A), Color(0xFF182030)]);
+      if (main.contains('cloud')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A2030), Color(0xFF1E252A)]);
+      return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A1505), Color(0xFF20180A)]);
+    }
+    // Evening
+    if (main.contains('rain') || main.contains('thunder')) return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF151525), Color(0xFF1A1830)]);
+    return const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A1208), Color(0xFF201510)]);
   }
 
   IconData _getWeatherIcon(String main) {
@@ -1136,6 +1281,144 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ///   sensorHealth/soil: "ok"
   ///   sensorHealth/ph: "ok"
   /// ------------------------------------------------
+  /// ------------------------------------------------
+  /// FARM HEALTH SCORE CARD
+  /// ------------------------------------------------
+  Widget _buildFarmHealthCard(AppLocalizations l10n) {
+    // Score each sensor 0–100 (skip if error)
+    int total = 0;
+    int count = 0;
+
+    // Soil moisture: 40–70% ideal
+    if (_sensorHealth['soil'] != 'error' && (_soil > 0 || _sensorHealth.isNotEmpty)) {
+      int s = _soil < 20 || _soil > 85 ? 20 : (_soil < 35 || _soil > 75 ? 55 : 100);
+      total += s; count++;
+    }
+    // pH: 6.0–7.0 ideal
+    if (_sensorHealth['ph'] != 'error' && _ph > 0) {
+      int s = _ph < 5 || _ph > 8.5 ? 20 : (_ph < 5.5 || _ph > 7.5 ? 55 : 100);
+      total += s; count++;
+    }
+    // Temperature: 20–30°C ideal
+    if (_temp > 0) {
+      int s = _temp < 10 || _temp > 40 ? 20 : (_temp < 15 || _temp > 33 ? 55 : 100);
+      total += s; count++;
+    }
+    // Humidity: 40–70% ideal
+    if (_humidity > 0) {
+      int s = _humidity < 20 || _humidity > 90 ? 20 : (_humidity < 30 || _humidity > 80 ? 55 : 100);
+      total += s; count++;
+    }
+
+    final score = count > 0 ? (total / count).round() : 0;
+    final scoreLabel = score >= 85 ? 'Excellent' : score >= 65 ? 'Good' : score >= 40 ? 'Fair' : 'Poor';
+    final scoreColor = score >= 85 ? AppColors.primary : score >= 65 ? const Color(0xFF8BC34A) : score >= 40 ? AppColors.warning : AppColors.error;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scoreColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          // Circular progress
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
+                  value: score / 100,
+                  strokeWidth: 6,
+                  backgroundColor: ThemeColors.border(context),
+                  valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+                ),
+                Text(
+                  '$score',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: scoreColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.t('Farm Health'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  scoreLabel,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: scoreColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  count == 0
+                      ? l10n.t('No sensor data')
+                      : '$count ${l10n.t('sensors active')}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Mini sensor status pills
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _healthPill('Soil', _sensorHealth['soil'] != 'error' && _soil > 0),
+              const SizedBox(height: 4),
+              _healthPill('pH', _sensorHealth['ph'] != 'error' && _ph > 0),
+              const SizedBox(height: 4),
+              _healthPill('Temp', _temp > 0),
+              const SizedBox(height: 4),
+              _healthPill('Humid', _humidity > 0),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _healthPill(String label, bool ok) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: ok ? AppColors.primary.withOpacity(0.12) : AppColors.error.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: ok ? AppColors.primary : AppColors.error,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSensorGrid(AppLocalizations l10n) {
     if (_selectedDeviceId == null) {
       return _buildNoDeviceCard(l10n);
@@ -1160,12 +1443,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 },
                 child: _buildSensorCard(
-                  icon: Icons.water_drop,
+                  icon: const FaIcon(FontAwesomeIcons.droplet, color: AppColors.soilMoisture, size: 20),
                   iconColor: AppColors.soilMoisture,
                   iconBgColor: AppColors.soilMoistureBackground,
                   label: l10n.t('SOIL MOISTURE'),
                   value: '$_soil',
                   unit: '%',
+                  numericValue: _soil.toDouble(),
+                  formatter: (v) => v.round().toString(),
                   status: _getSoilStatus(_soil, l10n),
                   statusColor: _getSoilStatusColor(_soil),
                   progressColor: AppColors.soilMoisture,
@@ -1190,12 +1475,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 },
                 child: _buildSensorCard(
-                  icon: Icons.science,
+                  icon: const FaIcon(FontAwesomeIcons.flask, color: AppColors.phLevel, size: 20),
                   iconColor: AppColors.phLevel,
                   iconBgColor: AppColors.phLevelBackground,
                   label: l10n.t('PH LEVEL'),
                   value: _ph.toStringAsFixed(1),
                   unit: '',
+                  numericValue: _ph,
+                  formatter: (v) => v.toStringAsFixed(1),
                   status: _getPhStatus(_ph, l10n),
                   statusColor: _getPhStatusColor(_ph),
                   progressColor: AppColors.phLevel,
@@ -1225,12 +1512,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 },
                 child: _buildSensorCard(
-                  icon: Icons.thermostat,
+                  icon: const FaIcon(FontAwesomeIcons.temperatureHalf, color: AppColors.temperature, size: 20),
                   iconColor: AppColors.temperature,
                   iconBgColor: AppColors.temperatureBackground,
                   label: l10n.t('TEMPERATURE'),
                   value: '$_temp',
                   unit: '°C',
+                  numericValue: _temp.toDouble(),
+                  formatter: (v) => v.round().toString(),
                   status: _getTempStatus(_temp, l10n),
                   statusColor: _getTempStatusColor(_temp),
                   progressColor: AppColors.temperature,
@@ -1255,12 +1544,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 },
                 child: _buildSensorCard(
-                  icon: Icons.cloud,
+                  icon: const FaIcon(FontAwesomeIcons.water, color: AppColors.humidity, size: 20),
                   iconColor: AppColors.humidity,
                   iconBgColor: AppColors.humidityBackground,
                   label: l10n.t('HUMIDITY'),
                   value: '$_humidity',
                   unit: '%',
+                  numericValue: _humidity.toDouble(),
+                  formatter: (v) => v.round().toString(),
                   status: _getHumidityStatus(_humidity, l10n),
                   statusColor: _getHumidityStatusColor(_humidity),
                   progressColor: AppColors.humidity,
@@ -1276,7 +1567,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildSensorCard({
-    required IconData icon,
+    required Widget icon,
     required Color iconColor,
     required Color iconBgColor,
     required String label,
@@ -1286,11 +1577,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color statusColor,
     required Color progressColor,
     required double progressValue,
+    required double numericValue,
+    required String Function(double) formatter,
     bool isWarning = false,
     String? sensorHealth,
     String sensorErrorText = 'Sensor Error',
   }) {
-    // Check if sensor has error
     final hasError = sensorHealth == 'error';
 
     return Container(
@@ -1316,29 +1608,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: hasError
-                      ? AppColors.error.withOpacity(0.1)
-                      : iconBgColor,
+                  color: hasError ? AppColors.error.withOpacity(0.1) : iconBgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color: hasError ? AppColors.error : iconColor,
-                  size: 22,
-                ),
+                child: icon,
               ),
-              Icon(
+              FaIcon(
                 hasError
-                    ? Icons.error
+                    ? FontAwesomeIcons.circleExclamation
                     : isWarning
-                    ? Icons.warning
-                    : Icons.check_circle,
+                    ? FontAwesomeIcons.triangleExclamation
+                    : FontAwesomeIcons.circleCheck,
                 color: hasError
                     ? AppColors.error
                     : isWarning
                     ? AppColors.warning
                     : AppColors.primary,
-                size: 20,
+                size: 18,
               ),
             ],
           ),
@@ -1354,18 +1640,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          // Value
+          // Animated Value
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                hasError ? '--' : value,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
-                ),
-              ),
+              hasError
+                  ? Text(
+                      '--',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.error,
+                      ),
+                    )
+                  : _AnimatedSensorValue(
+                      value: numericValue,
+                      formatter: formatter,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: ThemeColors.textPrimary(context),
+                      ),
+                    ),
               if (unit.isNotEmpty && !hasError)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4, left: 2),
@@ -1380,7 +1676,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          // Status
           Text(
             hasError ? sensorErrorText : status,
             style: TextStyle(
@@ -1390,16 +1685,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: hasError ? 0 : progressValue.clamp(0.0, 1.0),
-              backgroundColor: ThemeColors.bg(context),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                hasError ? AppColors.error : progressColor,
+          // Animated progress bar
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: hasError ? 0 : progressValue.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 1400),
+            curve: Curves.easeOut,
+            builder: (_, v, __) => ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: v,
+                backgroundColor: ThemeColors.bg(context),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  hasError ? AppColors.error : progressColor,
+                ),
+                minHeight: 4,
               ),
-              minHeight: 4,
             ),
           ),
         ],

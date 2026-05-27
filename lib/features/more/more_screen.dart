@@ -11,7 +11,6 @@ import '../../core/theme_notifier.dart';
 import '../../services/notifications/notification_service.dart';
 import '../../services/user_counter_service.dart';
 import 'profile/profile_screen.dart';
-import 'farm/farm_location_screen.dart';
 import 'farm/farm_details_screen.dart';
 import 'notifications/notifications_screen.dart';
 import 'preferences/language_screen.dart';
@@ -92,17 +91,10 @@ class _MoreScreenState extends State<MoreScreen> {
               const SizedBox(height: 12),
               _buildMenuCard([
                 _MenuItem(
-                  icon: Icons.location_on_outlined,
-                  iconColor: AppColors.primary,
-                  title: l10n.t('Farm Location'),
-                  subtitle: l10n.t('Set location for weather'),
-                  onTap: () => _navigateTo(const FarmLocationScreen()),
-                ),
-                _MenuItem(
                   icon: Icons.agriculture_outlined,
                   iconColor: AppColors.warning,
-                  title: l10n.t('Farm Details'),
-                  subtitle: l10n.t('Manage farm information'),
+                  title: l10n.t('My Farm'),
+                  subtitle: l10n.t('Farm profile, location & details'),
                   onTap: () => _navigateTo(const FarmDetailsScreen()),
                 ),
                 _MenuItem(

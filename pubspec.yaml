@@ -54,6 +54,9 @@ dependencies:
   # 🕐 Date & Time Formatting
   intl: ^0.18.0
 
+  # 🎨 Icons
+  font_awesome_flutter: ^10.7.0
+
   # 🔊 Sound Effects
   audioplayers: ^6.1.0
 
