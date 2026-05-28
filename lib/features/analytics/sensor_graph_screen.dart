@@ -41,11 +41,13 @@ import '../../core/app_localizations.dart';
 class SensorGraphScreen extends StatefulWidget {
   final String deviceId;
   final String sensorType;
+  final String? heroTag;
 
   const SensorGraphScreen({
     super.key,
     required this.deviceId,
     required this.sensorType,
+    this.heroTag,
   });
 
   @override
@@ -615,7 +617,9 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
       children: [
         // Primary Sensor Card (with color)
         Expanded(
-          child: Container(
+          child: Hero(
+            tag: widget.heroTag ?? 'sensor_icon_${widget.sensorType}',
+            child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -666,6 +670,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
         const SizedBox(width: 12),

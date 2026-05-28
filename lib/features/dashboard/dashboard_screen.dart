@@ -105,6 +105,20 @@ class _AnimatedSensorValueState extends State<_AnimatedSensorValue>
   }
 }
 
+/// Slides up from bottom with a slight fade — feels like drilling into detail
+class _SlideUpRoute extends PageRouteBuilder {
+  final Widget page;
+  _SlideUpRoute({required this.page})
+      : super(
+          pageBuilder: (_, __, ___) => page,
+          transitionDuration: const Duration(milliseconds: 500),
+          reverseTransitionDuration: const Duration(milliseconds: 500),
+          transitionsBuilder: (_, animation, secondaryAnimation, child) {
+            return child;
+          },
+        );
+}
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -346,7 +360,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 _buildOverviewHeader(l10n),
                 const SizedBox(height: 16),
 
-                // Farm Health Score
+                // Crop Health Score
                 _buildFarmHealthCard(l10n),
                 const SizedBox(height: 16),
 
@@ -1353,7 +1367,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l10n.t('Farm Health'),
+                  l10n.t('Crop Health'),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -1432,15 +1446,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SensorGraphScreen(
-                        deviceId: _selectedDeviceId!,
-                        sensorType: 'soil',
-                      ),
+                  Navigator.push(context, _SlideUpRoute(
+                    page: SensorGraphScreen(
+                      deviceId: _selectedDeviceId!,
+                      sensorType: 'soil',
+                      heroTag: 'sensor_icon_soil',
                     ),
-                  );
+                  ));
                 },
                 child: _buildSensorCard(
                   icon: const FaIcon(FontAwesomeIcons.droplet, color: AppColors.soilMoisture, size: 20),
@@ -1455,6 +1467,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   statusColor: _getSoilStatusColor(_soil),
                   progressColor: AppColors.soilMoisture,
                   progressValue: _soil / 100,
+                  heroTag: 'sensor_icon_soil',
                   sensorHealth: _sensorHealth['soil'],
                   sensorErrorText: l10n.t('Sensor Error'),
                 ),
@@ -1464,15 +1477,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SensorGraphScreen(
-                        deviceId: _selectedDeviceId!,
-                        sensorType: 'ph',
-                      ),
+                  Navigator.push(context, _SlideUpRoute(
+                    page: SensorGraphScreen(
+                      deviceId: _selectedDeviceId!,
+                      sensorType: 'ph',
+                      heroTag: 'sensor_icon_ph',
                     ),
-                  );
+                  ));
                 },
                 child: _buildSensorCard(
                   icon: const FaIcon(FontAwesomeIcons.flask, color: AppColors.phLevel, size: 20),
@@ -1487,6 +1498,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   statusColor: _getPhStatusColor(_ph),
                   progressColor: AppColors.phLevel,
                   progressValue: _ph / 14,
+                  heroTag: 'sensor_icon_ph',
                   sensorHealth: _sensorHealth['ph'],
                   sensorErrorText: l10n.t('Sensor Error'),
                 ),
@@ -1501,15 +1513,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SensorGraphScreen(
-                        deviceId: _selectedDeviceId!,
-                        sensorType: 'temp',
-                      ),
+                  Navigator.push(context, _SlideUpRoute(
+                    page: SensorGraphScreen(
+                      deviceId: _selectedDeviceId!,
+                      sensorType: 'temp',
+                      heroTag: 'sensor_icon_temp',
                     ),
-                  );
+                  ));
                 },
                 child: _buildSensorCard(
                   icon: const FaIcon(FontAwesomeIcons.temperatureHalf, color: AppColors.temperature, size: 20),
@@ -1524,6 +1534,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   statusColor: _getTempStatusColor(_temp),
                   progressColor: AppColors.temperature,
                   progressValue: _temp / 50,
+                  heroTag: 'sensor_icon_temp',
                   isWarning: _temp > 30,
                   sensorErrorText: l10n.t('Sensor Error'),
                 ),
@@ -1533,15 +1544,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SensorGraphScreen(
-                        deviceId: _selectedDeviceId!,
-                        sensorType: 'humidity',
-                      ),
+                  Navigator.push(context, _SlideUpRoute(
+                    page: SensorGraphScreen(
+                      deviceId: _selectedDeviceId!,
+                      sensorType: 'humidity',
+                      heroTag: 'sensor_icon_humidity',
                     ),
-                  );
+                  ));
                 },
                 child: _buildSensorCard(
                   icon: const FaIcon(FontAwesomeIcons.water, color: AppColors.humidity, size: 20),
@@ -1556,6 +1565,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   statusColor: _getHumidityStatusColor(_humidity),
                   progressColor: AppColors.humidity,
                   progressValue: _humidity / 100,
+                  heroTag: 'sensor_icon_humidity',
                   sensorErrorText: l10n.t('Sensor Error'),
                 ),
               ),
@@ -1579,13 +1589,16 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     required double progressValue,
     required double numericValue,
     required String Function(double) formatter,
+    String? heroTag,
     bool isWarning = false,
     String? sensorHealth,
     String sensorErrorText = 'Sensor Error',
   }) {
     final hasError = sensorHealth == 'error';
 
-    return Container(
+    return Hero(
+      tag: heroTag ?? label,
+      child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: ThemeColors.surface(context),
@@ -1606,13 +1619,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: hasError ? AppColors.error.withOpacity(0.1) : iconBgColor,
-                  borderRadius: BorderRadius.circular(12),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: hasError ? AppColors.error.withOpacity(0.1) : iconBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: icon,
                 ),
-                child: icon,
-              ),
               FaIcon(
                 hasError
                     ? FontAwesomeIcons.circleExclamation
@@ -1704,6 +1717,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
           ),
         ],
       ),
+    ),
     );
   }
 

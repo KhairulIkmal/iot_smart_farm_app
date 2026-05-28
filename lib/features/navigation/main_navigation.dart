@@ -44,7 +44,20 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: Stack(
+        children: _screens.asMap().entries.map((entry) {
+          final i = entry.key;
+          return AnimatedOpacity(
+            opacity: _currentIndex == i ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            child: IgnorePointer(
+              ignoring: _currentIndex != i,
+              child: entry.value,
+            ),
+          );
+        }).toList(),
+      ),
       extendBody: true, // Allow body to extend behind nav bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
