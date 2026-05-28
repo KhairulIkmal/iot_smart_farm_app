@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 
 import '../../core/theme.dart';
@@ -59,13 +60,16 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
 
   // Time range selection
   String _selectedRange = '24h';
-  final List<String> _timeRanges = ['24 Hours', '7 Days'];
+  final List<String> _timeRanges = ['24 Hours', '7 Days', '30 Days'];
 
   // Data
   List<_SensorDataPoint> _historyData = [];
   double? _currentValue;
   bool _isLoading = true;
   String? _error;
+
+  // Admin annotations
+  List<Map<String, dynamic>> _annotations = [];
 
   // Touch interaction for tooltip
   double? _touchX;
@@ -78,6 +82,27 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
     super.initState();
     _config = _getSensorConfig(widget.sensorType);
     _loadData();
+    _loadAnnotations();
+  }
+
+  Future<void> _loadAnnotations() async {
+    try {
+      final q = FirebaseFirestore.instance
+          .collection('annotations')
+          .where('farm_id', isEqualTo: widget.deviceId)
+          .where('pinned', isEqualTo: true)
+          .orderBy('created_at', descending: true)
+          .limit(5);
+      final snap = await q.get();
+      if (mounted) {
+        setState(() {
+          _annotations = snap.docs.map((d) => d.data()).toList();
+        });
+      }
+    } catch (e) {
+      // Annotations are non-critical — silently skip on error
+      debugPrint('Annotation load skipped: $e');
+    }
   }
 
   /// Get sensor configuration based on type
@@ -228,7 +253,9 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
       final now = DateTime.now();
       final startTime = _selectedRange == '24h'
           ? now.subtract(const Duration(hours: 24))
-          : now.subtract(const Duration(days: 7));
+          : _selectedRange == '7d'
+          ? now.subtract(const Duration(days: 7))
+          : now.subtract(const Duration(days: 30));
 
       final startTimestamp = startTime.millisecondsSinceEpoch ~/ 1000;
 
@@ -286,10 +313,8 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
     final now = DateTime.now();
     final random = math.Random();
 
-    final pointCount = _selectedRange == '24h' ? 24 : 168; // hourly points
-    final interval = _selectedRange == '24h'
-        ? const Duration(hours: 1)
-        : const Duration(hours: 1);
+    final pointCount = _selectedRange == '24h' ? 24 : _selectedRange == '7d' ? 168 : 720;
+    const interval = Duration(hours: 1);
 
     for (int i = pointCount; i >= 0; i--) {
       final timestamp = now.subtract(interval * i);
@@ -538,6 +563,10 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
 
                     // Current Values Cards
                     _buildCurrentValuesRow(),
+                    const SizedBox(height: 16),
+
+                    // Stats Row (avg / min / max)
+                    _buildStatsRow(),
                     const SizedBox(height: 24),
 
                     // Trend Analysis Section
@@ -547,6 +576,12 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
                     // Analysis Insight Card
                     _buildAnalysisInsight(),
                     const SizedBox(height: 24),
+
+                    // Admin Annotations
+                    if (_annotations.isNotEmpty) ...[
+                      _buildAnnotationsSection(),
+                      const SizedBox(height: 24),
+                    ],
                   ],
                 ),
               ),
@@ -568,13 +603,16 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
         children: _timeRanges.map((range) {
           final isSelected =
               (_selectedRange == '24h' && range == '24 Hours') ||
-              (_selectedRange == '7d' && range == '7 Days');
+              (_selectedRange == '7d' && range == '7 Days') ||
+              (_selectedRange == '30d' && range == '30 Days');
 
           return Expanded(
             child: GestureDetector(
               onTap: () {
                 setState(() {
-                  _selectedRange = range == '24 Hours' ? '24h' : '7d';
+                  _selectedRange = range == '24 Hours' ? '24h'
+                      : range == '7 Days' ? '7d'
+                      : '30d';
                 });
                 _loadData();
               },
@@ -899,7 +937,9 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
   Widget _buildXAxisLabels() {
     final labels = _selectedRange == '24h'
         ? ['12 AM', '6 AM', '12 PM', '6 PM']
-        : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        : _selectedRange == '7d'
+        ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        : ['Wk 1', 'Wk 2', 'Wk 3', 'Wk 4'];
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -975,6 +1015,161 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// STATS ROW (avg / min / max)
+  /// ------------------------------------------------
+  Widget _buildStatsRow() {
+    if (_historyData.isEmpty) return const SizedBox.shrink();
+
+    final values = _historyData.map((p) => p.value).toList();
+    final avg = values.reduce((a, b) => a + b) / values.length;
+    final minVal = values.reduce((a, b) => a < b ? a : b);
+    final maxVal = values.reduce((a, b) => a > b ? a : b);
+
+    return Row(
+      children: [
+        _buildStatCard('AVG', avg),
+        const SizedBox(width: 8),
+        _buildStatCard('MIN', minVal),
+        const SizedBox(width: 8),
+        _buildStatCard('MAX', maxVal),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, double value) {
+    String formatted;
+    if (widget.sensorType == 'ph') {
+      formatted = '${value.toStringAsFixed(1)} pH';
+    } else if (widget.sensorType == 'temp') {
+      formatted = '${value.toStringAsFixed(1)}°C';
+    } else {
+      formatted = '${value.toStringAsFixed(0)}${_config.unit}';
+    }
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          color: ThemeColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: ThemeColors.border(context)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+                color: ThemeColors.textSecondary(context).withOpacity(0.5),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              formatted,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: _config.color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// ADMIN ANNOTATIONS
+  /// ------------------------------------------------
+  Widget _buildAnnotationsSection() {
+    if (_annotations.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            'ADMIN NOTES',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
+            ),
+          ),
+        ),
+        ..._annotations.map((note) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.admin_panel_settings_outlined,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      note['admin_name'] ?? 'Admin',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (note['sensor_type'] != null &&
+                        note['sensor_type'] != 'general')
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          note['sensor_type'],
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  note['message'] ?? '',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: ThemeColors.textPrimary(context),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )),
+      ],
     );
   }
 
