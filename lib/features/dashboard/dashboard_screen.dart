@@ -17,6 +17,7 @@ import '../../services/user_counter_service.dart';
 import '../weather/weather_forecast_screen.dart';
 import '../analytics/sensor_graph_screen.dart';
 import '../more/notifications/notifications_screen.dart';
+import '../crop_management/crop_list_screen.dart';
 
 /// ------------------------------------------------------------
 /// DASHBOARD SCREEN (HOME TAB)
@@ -146,6 +147,9 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   // Stream subscription for crop selection
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
 
+  // Device code cache: Firestore doc ID → unique_code (AGR-XXXX-XXXX)
+  final Map<String, String> _deviceCodeCache = {};
+
   // Crops list and unread count — subscriptions, never recreated on rebuild
   List<QueryDocumentSnapshot> _crops = [];
   int _unreadCount = 0;
@@ -207,6 +211,18 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
         if (!mounted) return;
         final crops = snapshot.docs;
         setState(() => _crops = crops);
+
+        // Prefetch unique_code for any unseen device IDs
+        final ids = crops
+            .map((c) => (c.data() as Map<String, dynamic>)['device_id'] as String? ?? '')
+            .where((id) => id.isNotEmpty && !_deviceCodeCache.containsKey(id))
+            .toList();
+        for (final id in ids) {
+          _firestore.collection('devices').doc(id).get().then((doc) {
+            final code = doc.data()?['unique_code'] as String?;
+            if (code != null && mounted) setState(() => _deviceCodeCache[id] = code);
+          }).catchError((_) {});
+        }
 
         // Reset selection if selected crop no longer exists
         if (_selectedCropId != null && !crops.any((c) => c.id == _selectedCropId)) {
@@ -463,7 +479,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              selectedData['device_id'] ?? '',
+                              _deviceCodeCache[selectedData['device_id']] ?? selectedData['device_id'] ?? '',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: ThemeColors.textSecondary(context).withOpacity(0.5),
@@ -549,7 +565,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             Flexible(
               child: ListView.builder(
                 shrinkWrap: true,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 itemCount: crops.length,
                 itemBuilder: (context, index) {
                   final crop = crops[index];
@@ -628,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      deviceId,
+                                      _deviceCodeCache[deviceId] ?? deviceId,
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: ThemeColors.textSecondary(context).withOpacity(0.5),
@@ -653,6 +669,52 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 },
               ),
             ),
+            // Add New Crop button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CropListScreen(showBackButton: true),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.add, color: AppColors.primary, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        l10n.t('Add New Crop'),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
           ],
         ),
       ),

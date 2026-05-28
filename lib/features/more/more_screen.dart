@@ -18,6 +18,7 @@ import 'preferences/alert_tone_screen.dart';
 import 'preferences/change_password_screen.dart';
 import 'logout/logout_dialog.dart';
 import '../crop_management/crop_list_screen.dart';
+import '../support/support_screen.dart';
 
 /// ------------------------------------------------------------
 /// MORE SCREEN (SETTINGS HUB)
@@ -111,6 +112,20 @@ class _MoreScreenState extends State<MoreScreen> {
                   subtitle: l10n.t('Alerts and updates'),
                   badge: _unreadCount > 0 ? '$_unreadCount' : null,
                   onTap: () => _navigateTo(const NotificationsScreen()),
+                ),
+              ]),
+              const SizedBox(height: 24),
+
+              // Support Section
+              _buildSectionTitle('Support'),
+              const SizedBox(height: 12),
+              _buildMenuCard([
+                _MenuItem(
+                  icon: Icons.headset_mic_outlined,
+                  iconColor: AppColors.info,
+                  title: 'Contact Support',
+                  subtitle: 'Report a device issue',
+                  onTap: () => _navigateTo(const SupportScreen()),
                 ),
               ]),
               const SizedBox(height: 24),

@@ -531,14 +531,7 @@ class _SensorGraphScreenState extends State<SensorGraphScreen> {
           l10n.t('Sensor Analytics'),
           style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: ThemeColors.icon(context)),
-            onPressed: () {
-              // Settings action
-            },
-          ),
-        ],
+        actions: const [],
       ),
       body: _isLoading
           ? const Center(

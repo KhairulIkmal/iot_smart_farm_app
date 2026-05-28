@@ -4,14 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme.dart';
 
 /// ------------------------------------------------------------
-/// DELETE CROP DIALOG
+/// REMOVE CROP DIALOG
 ///
 /// PURPOSE:
 /// Permanently delete a crop and release its ESP32 device
 /// while keeping the system in a valid state.
 ///
 /// DELETING MEANS:
-/// - Device is no longer owned (status = unassigned)
+/// - Device is no longer owned (status = available)
 /// - Crop is permanently deleted from Firestore
 /// - Dashboard access is blocked again
 ///
@@ -19,10 +19,11 @@ import '../../core/theme.dart';
 /// - cropId (required)
 /// - deviceId (required)
 /// - cropType (optional - for display)
+/// - deviceCode (optional - human-readable code for display)
 ///
 /// FIRESTORE OPERATIONS (ATOMIC):
 /// 1. Delete crop document
-/// 2. Update device status to "unassigned"
+/// 2. Update device status to "available", clear farmer fields
 ///
 /// AFTER SUCCESS:
 /// - Close dialog
@@ -38,12 +39,14 @@ class UnclaimDeviceDialog extends StatefulWidget {
   final String cropId;
   final String deviceId;
   final String? cropType;
+  final String? deviceCode;
 
   const UnclaimDeviceDialog({
     super.key,
     required this.cropId,
     required this.deviceId,
     this.cropType,
+    this.deviceCode,
   });
 
   /// Show the dialog
@@ -52,6 +55,7 @@ class UnclaimDeviceDialog extends StatefulWidget {
     required String cropId,
     required String deviceId,
     String? cropType,
+    String? deviceCode,
   }) {
     return showDialog<bool>(
       context: context,
@@ -60,6 +64,7 @@ class UnclaimDeviceDialog extends StatefulWidget {
         cropId: cropId,
         deviceId: deviceId,
         cropType: cropType,
+        deviceCode: deviceCode,
       ),
     );
   }
@@ -87,10 +92,11 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
       // Update 2 — Reset Device Status
       final deviceRef = _firestore.collection('devices').doc(widget.deviceId);
       batch.update(deviceRef, {
-        'status': 'unassigned',
+        'status': 'available',
         'assigned_to': FieldValue.delete(),
+        'farmer_name': FieldValue.delete(),
+        'claimed_at': FieldValue.delete(),
         'assigned_crop_id': FieldValue.delete(),
-        'unassignedAt': FieldValue.serverTimestamp(),
       });
 
       // Commit both operations atomically
@@ -103,7 +109,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
     } on FirebaseException catch (e) {
       _showErrorSnackBar('Firebase error: ${e.message}');
     } catch (e) {
-      _showErrorSnackBar('Failed to delete crop. Please try again.');
+      _showErrorSnackBar('Failed to remove crop. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -130,6 +136,8 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final displayCode = widget.deviceCode ?? widget.deviceId;
+
     return Dialog(
       backgroundColor: ThemeColors.surface(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -155,7 +163,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
 
             // Title
             Text(
-              'Delete Crop?',
+              'Remove Crop?',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -164,8 +172,8 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
             ),
             const SizedBox(height: 8),
 
-            // Device/Crop Info
-            if (widget.cropType != null || widget.deviceId.isNotEmpty)
+            // Device/Crop Info chip
+            if (widget.cropType != null || displayCode.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.symmetric(
@@ -186,10 +194,9 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      widget.deviceId,
+                      displayCode,
                       style: TextStyle(
                         fontSize: 14,
-                        fontFamily: 'monospace',
                         color: ThemeColors.textSecondary(context).withOpacity(0.7),
                       ),
                     ),
@@ -297,7 +304,7 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Delete Button (Destructive - Red)
+                // Remove Button (Destructive - Red)
                 Expanded(
                   child: SizedBox(
                     height: 52,
@@ -328,10 +335,10 @@ class _UnclaimDeviceDialogState extends State<UnclaimDeviceDialog> {
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.delete_forever, size: 18),
+                                Icon(Icons.link_off, size: 18),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Delete',
+                                  'Remove',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,

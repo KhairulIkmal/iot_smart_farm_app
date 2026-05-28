@@ -73,6 +73,9 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
   late String _notes;
   String? _imageUrl;
 
+  // Device unique code (AGR-XXXX-XXXX)
+  String? _deviceCode;
+
   // New feature state
   DateTime? _plantingDate;
   DateTime? _expectedHarvestDate;
@@ -112,6 +115,19 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
           .get();
       if (!mounted || !doc.exists) return;
       final data = doc.data()!;
+
+      // Fetch the AGR-XXXX-XXXX code from the device document
+      try {
+        final deviceDoc = await FirebaseFirestore.instance
+            .collection('devices')
+            .doc(widget.deviceId)
+            .get();
+        if (deviceDoc.exists) {
+          final code = deviceDoc.data()?['unique_code'] as String?;
+          if (mounted && code != null) setState(() => _deviceCode = code);
+        }
+      } catch (_) {}
+
       setState(() {
         _plantingDate = (data['planting_date'] as Timestamp?)?.toDate();
         _expectedHarvestDate = (data['expected_harvest_date'] as Timestamp?)?.toDate();
@@ -371,7 +387,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
             children: [
               _buildInfoChip(Icons.calendar_today, l10n.t('Age'), ageText),
               const SizedBox(width: 12),
-              _buildInfoChip(Icons.memory, l10n.t('Device'), widget.deviceId),
+              _buildInfoChip(Icons.memory, l10n.t('Device'), _deviceCode ?? '—'),
             ],
           ),
         ],
@@ -1165,6 +1181,7 @@ class _CropDetailScreenState extends State<CropDetailScreen> {
         cropId: widget.cropId,
         deviceId: widget.deviceId,
         cropType: _cropType,
+        deviceCode: _deviceCode,
       ),
     );
 

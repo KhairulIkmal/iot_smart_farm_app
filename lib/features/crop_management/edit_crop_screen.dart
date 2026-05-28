@@ -51,18 +51,22 @@ class _EditCropScreenState extends State<EditCropScreen> {
   File? _pickedImage;
   String? _imageUrl;
 
-  // Available crop types
+  // Available crop types — synced with claim_device_screen
   final List<String> _cropTypes = [
     'Tomato',
-    'Corn',
-    'Wheat',
-    'Rice',
-    'Potato',
-    'Carrot',
+    'Chili',
     'Lettuce',
+    'Cabbage',
     'Cucumber',
-    'Pepper',
+    'Carrot',
+    'Potato',
+    'Corn',
+    'Rice',
+    'Wheat',
     'Onion',
+    'Pepper',
+    'Spinach',
+    'Broccoli',
     'Other',
   ];
 
@@ -91,9 +95,25 @@ class _EditCropScreenState extends State<EditCropScreen> {
       appBar: AppBar(
         backgroundColor: ThemeColors.bg(context),
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: ThemeColors.icon(context)),
-          onPressed: () => Navigator.pop(context),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: ThemeColors.surface(context),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: ThemeColors.border(context)),
+              ),
+              child: Icon(
+                Icons.arrow_back,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+          ),
         ),
         title: Text(
           l10n.t('Edit Crop Details'),
@@ -112,116 +132,27 @@ class _EditCropScreenState extends State<EditCropScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Status Banner
+                _buildStatusBanner(),
+                const SizedBox(height: 20),
+
                 // Crop Image Picker
                 _buildImagePicker(l10n),
                 const SizedBox(height: 24),
 
-                // Info Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.info_outline,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          l10n.t('Update your crop information below'),
-                          style: TextStyle(
-                            color: ThemeColors.textSecondary(context).withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
                 // Crop Type Dropdown
-                _buildLabel(l10n.t('Crop Type')),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _cropTypes.contains(_cropTypeController.text)
-                      ? _cropTypeController.text
-                      : 'Other',
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: ThemeColors.surface(context),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: ThemeColors.border(context)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: ThemeColors.border(context)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.eco, color: AppColors.primary),
-                  ),
-                  dropdownColor: ThemeColors.surface(context),
-                  style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
-                  items: _cropTypes.map((String crop) {
-                    return DropdownMenuItem<String>(
-                      value: crop,
-                      child: Text(crop),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _cropTypeController.text = newValue;
-                      });
-                    }
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a crop type';
-                    }
-                    return null;
-                  },
-                ),
+                _buildSectionTitle(l10n.t('Crop Type')),
+                const SizedBox(height: 12),
+                _buildCropTypeDropdown(l10n),
                 const SizedBox(height: 20),
 
                 // Field Name Input
-                _buildLabel(l10n.t('Field Name')),
-                const SizedBox(height: 8),
-                TextFormField(
+                _buildSectionTitle(l10n.t('Field Name')),
+                const SizedBox(height: 12),
+                _buildStyledTextField(
                   controller: _fieldNameController,
-                  style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: ThemeColors.surface(context),
-                    hintText: l10n.t('e.g., Field A, North Plot, etc.'),
-                    hintStyle: TextStyle(
-                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
-                      fontSize: 14,
-                    ),
-                    prefixIcon: const Icon(Icons.location_on, color: AppColors.primary),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: ThemeColors.border(context)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: ThemeColors.border(context)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                  ),
+                  hint: l10n.t('e.g., Field A, North Plot, etc.'),
+                  icon: Icons.location_on,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a field name';
@@ -232,86 +163,225 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 const SizedBox(height: 20),
 
                 // Notes Input
-                _buildLabel(l10n.t('Notes (Optional)')),
-                const SizedBox(height: 8),
-                TextFormField(
+                _buildSectionTitle(l10n.t('Notes (Optional)')),
+                const SizedBox(height: 12),
+                _buildStyledTextField(
                   controller: _notesController,
-                  style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
+                  hint: l10n.t('Add any notes about this crop...'),
+                  icon: Icons.notes,
                   maxLines: 4,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: ThemeColors.surface(context),
-                    hintText: l10n.t('Add any notes about this crop...'),
-                    hintStyle: TextStyle(
-                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
-                      fontSize: 14,
-                    ),
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(bottom: 60),
-                      child: Icon(Icons.notes, color: AppColors.primary),
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: ThemeColors.border(context)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: ThemeColors.border(context)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                  ),
+                  prefixIconAlignTop: true,
                 ),
                 const SizedBox(height: 32),
 
                 // Update Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleUpdateCrop,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                      disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.check_circle, size: 24),
-                              const SizedBox(width: 8),
-                              Text(
-                                l10n.t('Update Crop'),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
+                _buildUpdateButton(l10n),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// STATUS BANNER
+  /// ------------------------------------------------
+  Widget _buildStatusBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.edit_note,
+            color: AppColors.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Editing: ${widget.currentCropType} — ${widget.currentFieldName}',
+              style: TextStyle(
+                fontSize: 13,
+                color: ThemeColors.textSecondary(context).withOpacity(0.8),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// SECTION TITLE with green left-border accent
+  /// ------------------------------------------------
+  Widget _buildSectionTitle(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 2,
+          height: 20,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Text(
+          title,
+          style: TextStyle(
+            color: ThemeColors.textPrimary(context),
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ------------------------------------------------
+  /// CROP TYPE DROPDOWN
+  /// ------------------------------------------------
+  Widget _buildCropTypeDropdown(AppLocalizations l10n) {
+    final currentValue = _cropTypes.contains(_cropTypeController.text)
+        ? _cropTypeController.text
+        : 'Other';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: currentValue,
+        dropdownColor: ThemeColors.surface(context),
+        decoration: InputDecoration(
+          filled: false,
+          prefixIcon: const Icon(Icons.eco, color: AppColors.primary),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+        ),
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
+        icon: Icon(
+          Icons.keyboard_arrow_down,
+          color: ThemeColors.textSecondary(context).withOpacity(0.5),
+        ),
+        items: _cropTypes.map((String crop) {
+          return DropdownMenuItem<String>(
+            value: crop,
+            child: Text(crop),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          if (newValue != null) {
+            setState(() {
+              _cropTypeController.text = newValue;
+            });
+          }
+        },
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Please select a crop type';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// STYLED TEXT FIELD
+  /// ------------------------------------------------
+  Widget _buildStyledTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    int maxLines = 1,
+    bool prefixIconAlignTop = false,
+    String? Function(String?)? validator,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16),
+        decoration: InputDecoration(
+          filled: false,
+          hintText: hint,
+          hintStyle: TextStyle(
+            color: ThemeColors.textSecondary(context).withOpacity(0.4),
+            fontSize: 14,
+          ),
+          prefixIcon: prefixIconAlignTop && maxLines > 1
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 60),
+                  child: Icon(icon, color: AppColors.primary),
+                )
+              : Icon(icon, color: AppColors.primary),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+        ),
+        validator: validator,
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// UPDATE BUTTON
+  /// ------------------------------------------------
+  Widget _buildUpdateButton(AppLocalizations l10n) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _handleUpdateCrop,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+          disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_rounded, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    l10n.t('Update Crop'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -323,8 +393,8 @@ class _EditCropScreenState extends State<EditCropScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel(l10n.t('Crop Photo (Optional)')),
-        const SizedBox(height: 8),
+        _buildSectionTitle(l10n.t('Crop Photo (Optional)')),
+        const SizedBox(height: 12),
         GestureDetector(
           onTap: _isUploadingImage ? null : _showImageSourceSheet,
           child: Container(
@@ -336,7 +406,7 @@ class _EditCropScreenState extends State<EditCropScreen> {
               border: Border.all(
                 color: _pickedImage != null || _imageUrl != null
                     ? AppColors.primary.withOpacity(0.5)
-                    : ThemeColors.border(context),
+                    : AppColors.primary.withOpacity(0.2),
                 width: 1.5,
               ),
             ),
@@ -528,11 +598,17 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 ),
                 title: Text(
                   l10n.t('Take a Photo'),
-                  style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: ThemeColors.textPrimary(context),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 subtitle: Text(
                   l10n.t('Use your camera'),
-                  style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5), fontSize: 12),
+                  style: TextStyle(
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                    fontSize: 12,
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -550,11 +626,17 @@ class _EditCropScreenState extends State<EditCropScreen> {
                 ),
                 title: Text(
                   l10n.t('Choose from Gallery'),
-                  style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: ThemeColors.textPrimary(context),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 subtitle: Text(
                   l10n.t('Pick from your photos'),
-                  style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5), fontSize: 12),
+                  style: TextStyle(
+                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                    fontSize: 12,
+                  ),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -606,17 +688,6 @@ class _EditCropScreenState extends State<EditCropScreen> {
     } finally {
       if (mounted) setState(() => _isUploadingImage = false);
     }
-  }
-
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        color: ThemeColors.textPrimary(context),
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-      ),
-    );
   }
 
   Future<void> _handleUpdateCrop() async {

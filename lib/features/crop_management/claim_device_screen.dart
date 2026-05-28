@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
@@ -18,13 +22,14 @@ import '../../services/crop_counter_service.dart';
 /// - deviceName (optional)
 ///
 /// FIRESTORE OPERATIONS:
-/// 1. Check for existing active crop (single-active-crop rule)
-/// 2. Create new crop document
-/// 3. Update device status to "assigned"
+/// 1. Check device not already claimed by another farmer
+/// 2. Resolve farmer display name from users collection
+/// 3. Create new crop document
+/// 4. Update device: status=claimed, farmer_name, claimed_at
 ///
 /// NAVIGATION:
-/// - After success: Navigator.pop()
-/// - PostLoginRouter will re-evaluate and route to dashboard
+/// - After success: Navigator.pop(context, true)
+/// - CropListScreen receives true and pushes MainNavigation
 ///
 /// DOES NOT:
 /// - Read Realtime Database
@@ -45,6 +50,8 @@ class ClaimDeviceScreen extends StatefulWidget {
 class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
   final CropCounterService _cropCounterService = CropCounterService();
 
   final _formKey = GlobalKey<FormState>();
@@ -54,8 +61,30 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   String? _selectedCropType;
   bool _isLoading = false;
   bool _isCheckingDevice = true;
+  bool _isUploadingImage = false;
+  File? _pickedImage;
   String? _deviceStatus;
+  String? _uniqueCode;
   Timestamp? _deviceLastSeen;
+
+  // Crop type → emoji mapping
+  static const Map<String, String> _cropEmoji = {
+    'Tomato': '🍅',
+    'Chili': '🌶️',
+    'Lettuce': '🥬',
+    'Cabbage': '🥦',
+    'Cucumber': '🥒',
+    'Carrot': '🥕',
+    'Potato': '🥔',
+    'Corn': '🌽',
+    'Rice': '🌾',
+    'Wheat': '🌾',
+    'Onion': '🧅',
+    'Pepper': '🫑',
+    'Spinach': '🥬',
+    'Broccoli': '🥦',
+    'Other': '🌱',
+  };
 
   // Available crop types
   final List<String> _cropTypes = [
@@ -100,12 +129,13 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       if (deviceDoc.exists) {
         final data = deviceDoc.data()!;
         setState(() {
-          _deviceStatus = data['status'] ?? 'unassigned';
+          _deviceStatus = data['status'] as String? ?? 'available';
+          _uniqueCode = data['unique_code'] as String?;
           _deviceLastSeen = data['lastSeen'] as Timestamp?;
         });
       } else {
         setState(() {
-          _deviceStatus = 'unassigned';
+          _deviceStatus = 'available';
         });
       }
     } catch (e) {
@@ -117,6 +147,79 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       setState(() {
         _isCheckingDevice = false;
       });
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final file = await _picker.pickImage(source: source, imageQuality: 80, maxWidth: 1080);
+    if (file == null) return;
+    setState(() => _pickedImage = File(file.path));
+  }
+
+  void _showImageSourceSheet() {
+    final l10n = AppLocalizations.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ThemeColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: ThemeColors.textSecondary(context).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.t('Choose Photo Source'),
+                style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.camera_alt, color: AppColors.primary),
+                ),
+                title: Text(l10n.t('Take a Photo'), style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500)),
+                subtitle: Text(l10n.t('Use your camera'), style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5), fontSize: 12)),
+                onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.photo_library, color: AppColors.primary),
+                ),
+                title: Text(l10n.t('Choose from Gallery'), style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.w500)),
+                subtitle: Text(l10n.t('Pick from your photos'), style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.5), fontSize: 12)),
+                onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _uploadImage(String cropId) async {
+    if (_pickedImage == null) return null;
+    setState(() => _isUploadingImage = true);
+    try {
+      final ref = _storage.ref().child('crop_images').child('$cropId.jpg');
+      await ref.putFile(_pickedImage!);
+      return await ref.getDownloadURL();
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
     }
   }
 
@@ -147,7 +250,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         final deviceData = deviceDoc.data()!;
         final assignedTo = deviceData['assigned_to'];
 
-        if (deviceData['status'] == 'assigned' &&
+        if (deviceData['status'] == 'claimed' &&
             assignedTo != null &&
             assignedTo != user.uid) {
           _showErrorSnackBar(
@@ -158,10 +261,27 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         }
       }
 
-      // STEP 2: Generate next crop ID
+      // STEP 2: Resolve farmer display name for the admin panel
+      String farmerName = user.displayName ?? 'Farmer';
+      try {
+        final userDocs = await _firestore
+            .collection('users')
+            .where('uid', isEqualTo: user.uid)
+            .limit(1)
+            .get();
+        if (userDocs.docs.isNotEmpty) {
+          final ud = userDocs.docs.first.data();
+          farmerName = ud['name'] as String? ?? ud['displayName'] as String? ?? farmerName;
+        }
+      } catch (_) {}
+
+      // STEP 3: Generate next crop ID
       final cropId = await _cropCounterService.getNextCropId();
 
-      // STEP 3: Perform atomic write (transaction)
+      // STEP 3b: Upload image if picked (must happen outside transaction)
+      final imageUrl = await _uploadImage(cropId);
+
+      // STEP 4: Perform atomic write (transaction)
       await _firestore.runTransaction((transaction) async {
         // Create new crop document with sequential ID
         final cropRef = _firestore.collection('crops').doc(cropId);
@@ -175,15 +295,17 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
           'notes': _notesController.text.trim(),
           'status': 'active',
           'createdAt': FieldValue.serverTimestamp(),
+          if (imageUrl != null) 'image_url': imageUrl,
         });
 
-        // Update device status
+        // Update device status — use field names the web admin panel reads
         final deviceRef = _firestore.collection('devices').doc(widget.deviceId);
         transaction.set(deviceRef, {
-          'status': 'assigned',
+          'status': 'claimed',
           'assigned_to': user.uid,
+          'farmer_name': farmerName,   // web reads: d.farmer_name
+          'claimed_at': FieldValue.serverTimestamp(), // web reads: dev.claimed_at
           'assigned_crop_id': cropId,
-          'assignedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       });
 
@@ -191,8 +313,8 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       if (mounted) {
         _showSuccessSnackBar('Device assigned successfully!');
 
-        // Navigate back - PostLoginRouter will re-evaluate and route to dashboard
-        Navigator.pop(context);
+        // Navigate back - return true so CropListScreen routes to MainNavigation
+        Navigator.pop(context, true);
       }
     } on FirebaseException catch (e) {
       _showErrorSnackBar('Firebase error: ${e.message}');
@@ -218,23 +340,27 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
           child: GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(
-              padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: ThemeColors.surface(context),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: ThemeColors.border(context)),
               ),
               child: Icon(
                 Icons.arrow_back,
-                color: ThemeColors.icon(context),
-                size: 24,
+                color: AppColors.primary,
+                size: 20,
               ),
             ),
           ),
         ),
         title: Text(
           l10n.t('Assign Device'),
-          style: TextStyle(color: ThemeColors.textPrimary(context), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: ThemeColors.textPrimary(context),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: _isCheckingDevice
@@ -250,9 +376,21 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Hero Header Banner
+                    _buildHeroHeader(l10n),
+                    const SizedBox(height: 24),
+
+                    // Step 1 pill
+                    _buildStepPill('① Confirm Device'),
+                    const SizedBox(height: 12),
+
                     // Device Information Card (READ-ONLY)
                     _buildDeviceInfoCard(l10n),
                     const SizedBox(height: 24),
+
+                    // Step 2 pill
+                    _buildStepPill('② Crop Details'),
+                    const SizedBox(height: 12),
 
                     // Crop Selection (REQUIRED)
                     _buildSectionTitle('Crop Type'),
@@ -285,6 +423,12 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                       icon: Icons.notes_outlined,
                       maxLines: 3,
                     ),
+                    const SizedBox(height: 24),
+
+                    // Crop Photo
+                    _buildSectionTitle(l10n.t('Crop Photo (Optional)')),
+                    const SizedBox(height: 12),
+                    _buildImagePicker(l10n),
                     const SizedBox(height: 32),
 
                     // Info Card
@@ -302,10 +446,94 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   }
 
   /// ------------------------------------------------
+  /// HERO HEADER BANNER
+  /// ------------------------------------------------
+  Widget _buildHeroHeader(AppLocalizations l10n) {
+    final isAssigned = _deviceStatus == 'claimed';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withOpacity(0.15),
+            AppColors.primary.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.developer_board,
+              color: AppColors.primary,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _uniqueCode ?? l10n.t('IoT Device'),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: ThemeColors.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isAssigned ? 'Ready to activate' : 'IoT Sensor Device',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// STEP PILL INDICATOR
+  /// ------------------------------------------------
+  Widget _buildStepPill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
   /// DEVICE INFORMATION CARD (READ-ONLY)
   /// ------------------------------------------------
   Widget _buildDeviceInfoCard(AppLocalizations l10n) {
-    final isAssigned = _deviceStatus == 'assigned';
+    final isAssigned = _deviceStatus == 'claimed';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -320,53 +548,6 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              // Device Icon
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.developer_board,
-                  color: AppColors.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Device Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.deviceName ?? l10n.t('ESP32 Controller'),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: ThemeColors.textPrimary(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.deviceId,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Divider
-          Divider(color: ThemeColors.border(context), height: 1),
-          const SizedBox(height: 16),
           // Status Row
           Row(
             children: [
@@ -374,7 +555,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                 child: _buildInfoRow(
                   'Status',
                   _deviceStatus ?? 'Unknown',
-                  _deviceStatus == 'unassigned'
+                  _deviceStatus == 'available'
                       ? AppColors.primary
                       : AppColors.warning,
                 ),
@@ -383,7 +564,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
               Expanded(child: _buildInfoRow('Type', 'ESP32', ThemeColors.textPrimary(context))),
             ],
           ),
-          // Warning if already assigned
+          // Warning if already claimed
           if (isAssigned) ...[
             const SizedBox(height: 16),
             Container(
@@ -447,7 +628,7 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: DropdownButtonFormField<String>(
-        initialValue: _selectedCropType,
+        value: _selectedCropType,
         dropdownColor: ThemeColors.surface(context),
         decoration: InputDecoration(
           filled: false,
@@ -473,7 +654,11 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
           color: ThemeColors.textSecondary(context).withOpacity(0.5),
         ),
         items: _cropTypes.map((crop) {
-          return DropdownMenuItem<String>(value: crop, child: Text(crop));
+          final emoji = _cropEmoji[crop] ?? '🌱';
+          return DropdownMenuItem<String>(
+            value: crop,
+            child: Text('$emoji  $crop'),
+          );
         }).toList(),
         onChanged: (value) {
           setState(() {
@@ -521,6 +706,119 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
           contentPadding: const EdgeInsets.all(16),
         ),
       ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// IMAGE PICKER
+  /// ------------------------------------------------
+  Widget _buildImagePicker(AppLocalizations l10n) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _isUploadingImage ? null : _showImageSourceSheet,
+          child: Container(
+            height: 160,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _pickedImage != null
+                    ? AppColors.primary.withOpacity(0.5)
+                    : AppColors.primary.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: _isUploadingImage
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            l10n.t('Uploading...'),
+                            style: TextStyle(
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _pickedImage != null
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.file(_pickedImage!, fit: BoxFit.cover),
+                            Positioned(
+                              right: 8, bottom: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.edit, color: Colors.white, size: 14),
+                                    SizedBox(width: 4),
+                                    Text('Change', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_photo_alternate_outlined,
+                              size: 44,
+                              color: AppColors.primary.withOpacity(0.4),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              l10n.t('Tap to add a photo'),
+                              style: TextStyle(
+                                color: ThemeColors.textSecondary(context).withOpacity(0.6),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.t('Camera or Gallery'),
+                              style: TextStyle(
+                                color: ThemeColors.textSecondary(context).withOpacity(0.3),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+            ),
+          ),
+        ),
+        if (_pickedImage != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: () => setState(() => _pickedImage = null),
+              icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
+              label: Text(
+                l10n.t('Remove photo'),
+                style: const TextStyle(color: AppColors.error, fontSize: 13),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -615,16 +913,29 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
   }
 
   /// ------------------------------------------------
-  /// SECTION TITLE
+  /// SECTION TITLE with left green bar accent
   /// ------------------------------------------------
   Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: ThemeColors.textPrimary(context),
-      ),
+    return Row(
+      children: [
+        Container(
+          width: 2,
+          height: 20,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: ThemeColors.textPrimary(context),
+          ),
+        ),
+      ],
     );
   }
 

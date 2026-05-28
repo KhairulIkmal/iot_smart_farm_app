@@ -424,83 +424,106 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
     final typeIcon = _farmTypeIcons[_farmType] ?? Icons.eco_outlined;
 
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: ThemeColors.surface(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: ThemeColors.border(context)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Farm icon
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(typeIcon, color: AppColors.primary, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _farmName.isNotEmpty ? _farmName : 'My Farm',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: ThemeColors.textPrimary(context),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    _infoPill(Icons.landscape_outlined, _farmSize.isNotEmpty ? '${_farmSize} acres' : 'Size not set'),
-                    const SizedBox(width: 8),
-                    _infoPill(typeIcon, _farmType),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Edit button
-          GestureDetector(
-            onTap: _openEditSheet,
-            child: Container(
-              padding: const EdgeInsets.all(8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Accent banner
+            Container(
+              height: 6,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.4)],
+                ),
               ),
-              child: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 18),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Farm icon
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(typeIcon, color: AppColors.primary, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _farmName.isNotEmpty ? _farmName : 'My Farm',
+                          style: TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold,
+                            color: ThemeColors.textPrimary(context),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            _infoPill(Icons.landscape_outlined,
+                                _farmSize.isNotEmpty ? '$_farmSize acres' : 'Size not set'),
+                            _infoPill(typeIcon, _farmType),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Edit button
+                  GestureDetector(
+                    onTap: _openEditSheet,
+                    child: Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.edit_outlined, color: AppColors.primary, size: 18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _infoPill(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: ThemeColors.bg(context),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: ThemeColors.textSecondary(context).withOpacity(0.5)),
-          const SizedBox(width: 4),
+          Icon(icon, size: 12, color: AppColors.primary.withOpacity(0.7)),
+          const SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
               fontSize: 12,
-              color: ThemeColors.textSecondary(context).withOpacity(0.6),
+              fontWeight: FontWeight.w500,
+              color: ThemeColors.textSecondary(context).withOpacity(0.7),
             ),
           ),
         ],
@@ -698,17 +721,27 @@ class _FarmDetailsScreenState extends State<FarmDetailsScreen> {
 
   /// ── Section Title ──
   Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: ThemeColors.textSecondary(context).withOpacity(0.5),
-          letterSpacing: 1,
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 14,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: ThemeColors.textSecondary(context).withOpacity(0.65),
+            letterSpacing: 1,
+          ),
+        ),
+      ],
     );
   }
 
@@ -923,11 +956,13 @@ class _DeviceStatusRow extends StatefulWidget {
 
 class _DeviceStatusRowState extends State<_DeviceStatusRow> {
   bool _isOnline = false;
+  String? _deviceCode;
   StreamSubscription<DatabaseEvent>? _sub;
 
   @override
   void initState() {
     super.initState();
+    _fetchDeviceCode();
     _sub = FirebaseDatabase.instance
         .ref('sensors/${widget.deviceId}/live/lastSeen')
         .onValue
@@ -942,6 +977,18 @@ class _DeviceStatusRowState extends State<_DeviceStatusRow> {
       }
       setState(() => _isOnline = online);
     });
+  }
+
+  Future<void> _fetchDeviceCode() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('devices')
+          .doc(widget.deviceId)
+          .get();
+      if (mounted && snap.exists) {
+        setState(() => _deviceCode = snap.data()?['unique_code'] as String?);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -970,16 +1017,17 @@ class _DeviceStatusRowState extends State<_DeviceStatusRow> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.deviceId,
+                  _deviceCode ?? widget.deviceId,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: ThemeColors.textPrimary(context),
+                    letterSpacing: _deviceCode != null ? 0.8 : 0,
                   ),
                 ),
                 Text(
-                  widget.l10n.t('ESP32 Controller'),
-                  style: TextStyle(fontSize: 13, color: ThemeColors.textSecondary(context).withOpacity(0.5)),
+                  widget.l10n.t('IoT Sensor Device'),
+                  style: TextStyle(fontSize: 12, color: ThemeColors.textSecondary(context).withOpacity(0.45)),
                 ),
               ],
             ),
