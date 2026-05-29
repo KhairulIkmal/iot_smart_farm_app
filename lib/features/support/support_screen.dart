@@ -799,6 +799,16 @@ class _NewTicketDialogState extends State<_NewTicketDialog> {
   bool _submitting = false;
   String? _farmerName;
 
+  static const _subjectSuggestions = [
+    'Device not connecting',
+    'Sensor reading inaccurate',
+    'Pump not responding',
+    'Device offline',
+    'App not updating',
+    'WiFi connection issue',
+    'Device setup help',
+  ];
+
   // Each entry: { device_id, unique_code, crop_name }
   List<Map<String, String>> _devices = [];
   int _selectedIdx = 0;
@@ -952,6 +962,54 @@ class _NewTicketDialogState extends State<_NewTicketDialog> {
     } catch (_) {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Widget _buildSubjectSuggestions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Quick subjects',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: ThemeColors.textSecondary(context).withOpacity(0.55),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (int i = 0; i < _subjectSuggestions.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _subjectController.text = _subjectSuggestions[i]),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                    ),
+                    child: Text(
+                      _subjectSuggestions[i],
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
   }
 
   // ── Device section: loading / no device / single / multi-picker ──
@@ -1170,6 +1228,7 @@ class _NewTicketDialogState extends State<_NewTicketDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildDeviceSection(),
+            _buildSubjectSuggestions(),
             TextField(
               controller: _subjectController,
               maxLength: 100,

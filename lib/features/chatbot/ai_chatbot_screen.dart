@@ -26,7 +26,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String _selectedCrop = 'Tomato';
-  bool _isLoading = false;
   Map<String, dynamic>? _recommendations;
   String? _userCropId;
 
@@ -36,149 +35,174 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   final ScrollController _chatScrollController = ScrollController();
   bool _isChatLoading = false;
 
+  static const Map<String, String> _cropEmoji = {
+    'Tomato': '🍅', 'Chili': '🌶️', 'Lettuce': '🥬',
+    'Cabbage': '🥦', 'Cucumber': '🥒', 'Carrot': '🥕',
+    'Potato': '🥔', 'Onion': '🧅', 'Pepper': '🫑',
+    'Spinach': '🥬', 'Broccoli': '🥦', 'Other': '🌱',
+  };
+
   final List<String> _cropTypes = [
     'Tomato',
-    'Cabbage',
-    'Carrots',
-    'Corn',
-    'Wheat',
-    'Rice',
-    'Potato',
+    'Chili',
     'Lettuce',
+    'Cabbage',
     'Cucumber',
-    'Pepper',
+    'Carrot',
+    'Potato',
     'Onion',
+    'Pepper',
     'Spinach',
+    'Broccoli',
+    'Other',
   ];
 
-  final Map<String, Map<String, dynamic>> _cropDatabase = {
+  // Mutable — overwritten by Firestore data on load. Falls back to _defaultCropThresholds.
+  Map<String, Map<String, dynamic>> _cropDatabase = {};
+
+  // Source-backed defaults (FAO-56, UF/IFAS HS1207, UC IPM, NHB India).
+  static const Map<String, Map<String, dynamic>> _defaultCropThresholds = {
     'Tomato': {
-      'moistureMin': 60,
-      'moistureMax': 80,
-      'phMin': 6.0,
-      'phMax': 6.8,
-      'bestTime': '06:00 AM',
-      'frequency': 'Daily',
-      'tip':
-          'Tomatoes need consistent moisture. Avoid wetting leaves to prevent disease.',
+      'moistureMin': 60, 'moistureMax': 80,
+      'phMin': 6.0, 'phMax': 6.8,
+      'tempMin': 21, 'tempMax': 27,
+      'humidityMin': 65, 'humidityMax': 75,
+      'bestTime': '06:00 AM', 'frequency': 'Every 3–5 Days',
+      'tip': 'Tomatoes need consistent moisture. Avoid wetting leaves to prevent disease. Critical watering during fruit set and expansion.',
     },
-    'Cabbage': {
-      'moistureMin': 60,
-      'moistureMax': 75,
-      'phMin': 6.0,
-      'phMax': 7.5,
-      'bestTime': '06:00 AM',
-      'frequency': 'Every 2 Days',
-      'tip':
-          'Cabbage needs consistent moisture for head formation. Mulch to retain soil moisture.',
-    },
-    'Carrots': {
-      'moistureMin': 60,
-      'moistureMax': 75,
-      'phMin': 6.0,
-      'phMax': 6.8,
-      'bestTime': '06:00 AM',
-      'frequency': 'Every 2 Days',
-      'tip':
-          'Carrots require consistent moisture during germination. Avoid over-watering to prevent root rot.',
-    },
-    'Corn': {
-      'moistureMin': 50,
-      'moistureMax': 70,
-      'phMin': 5.8,
-      'phMax': 7.0,
-      'bestTime': '07:00 AM',
-      'frequency': 'Every 2-3 Days',
-      'tip':
-          'Corn needs deep watering. Critical periods are tasseling and ear development.',
-    },
-    'Wheat': {
-      'moistureMin': 40,
-      'moistureMax': 60,
-      'phMin': 6.0,
-      'phMax': 7.5,
-      'bestTime': '06:30 AM',
-      'frequency': 'Every 3-4 Days',
-      'tip':
-          'Wheat is drought-tolerant but needs moisture during flowering and grain filling.',
-    },
-    'Rice': {
-      'moistureMin': 80,
-      'moistureMax': 95,
-      'phMin': 5.5,
-      'phMax': 6.5,
-      'bestTime': '05:00 AM',
-      'frequency': 'Continuous',
-      'tip':
-          'Rice requires flooded conditions. Maintain 2-5cm water depth during growing season.',
-    },
-    'Potato': {
-      'moistureMin': 60,
-      'moistureMax': 80,
-      'phMin': 5.0,
-      'phMax': 6.0,
-      'bestTime': '06:00 AM',
-      'frequency': 'Every 2-3 Days',
-      'tip':
-          'Potatoes need consistent moisture. Irregular watering causes misshapen tubers.',
+    'Chili': {
+      'moistureMin': 50, 'moistureMax': 70,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 20, 'tempMax': 30,
+      'humidityMin': 60, 'humidityMax': 80,
+      'bestTime': '06:30 AM', 'frequency': 'Every 3–5 Days',
+      'tip': 'Chili prefers well-drained soil. Avoid overwatering — it causes flower and fruit drop. Reduce watering at fruit maturity.',
     },
     'Lettuce': {
-      'moistureMin': 65,
-      'moistureMax': 80,
-      'phMin': 6.0,
-      'phMax': 7.0,
-      'bestTime': '05:30 AM',
-      'frequency': 'Daily',
-      'tip':
-          'Lettuce has shallow roots. Keep soil consistently moist but not waterlogged.',
+      'moistureMin': 60, 'moistureMax': 75,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 15, 'tempMax': 22,
+      'humidityMin': 60, 'humidityMax': 70,
+      'bestTime': '05:30 AM', 'frequency': 'Daily',
+      'tip': 'Lettuce has shallow roots (15–30 cm). Keep soil consistently moist but not waterlogged. Grows best in cool conditions.',
+    },
+    'Cabbage': {
+      'moistureMin': 60, 'moistureMax': 75,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 15, 'tempMax': 22,
+      'humidityMin': 60, 'humidityMax': 75,
+      'bestTime': '06:00 AM', 'frequency': 'Every 3–5 Days',
+      'tip': 'Cabbage needs consistent moisture for head formation. Mulch to retain soil moisture. Critical period is during head development.',
     },
     'Cucumber': {
-      'moistureMin': 65,
-      'moistureMax': 85,
-      'phMin': 6.0,
-      'phMax': 7.0,
-      'bestTime': '06:00 AM',
-      'frequency': 'Daily',
-      'tip':
-          'Cucumbers need consistent moisture. Mulch helps retain soil moisture.',
+      'moistureMin': 60, 'moistureMax': 80,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 18, 'tempMax': 30,
+      'humidityMin': 60, 'humidityMax': 85,
+      'bestTime': '06:00 AM', 'frequency': 'Every 2–4 Days',
+      'tip': 'Cucumbers need consistent moisture. Mulch helps retain soil moisture. Avoid wetting foliage to prevent fungal diseases.',
     },
-    'Pepper': {
-      'moistureMin': 55,
-      'moistureMax': 70,
-      'phMin': 6.0,
-      'phMax': 6.8,
-      'bestTime': '06:30 AM',
-      'frequency': 'Every 2 Days',
-      'tip':
-          'Peppers prefer deep, infrequent watering. Avoid wet foliage to prevent disease.',
+    'Carrot': {
+      'moistureMin': 55, 'moistureMax': 70,
+      'phMin': 6.0, 'phMax': 6.8,
+      'tempMin': 16, 'tempMax': 21,
+      'humidityMin': 60, 'humidityMax': 75,
+      'bestTime': '06:00 AM', 'frequency': 'Every 2–3 Days',
+      'tip': 'Carrots require consistent moisture during germination. Avoid over-watering to prevent root rot. Deep watering encourages straight root growth.',
+    },
+    'Potato': {
+      'moistureMin': 60, 'moistureMax': 80,
+      'phMin': 5.0, 'phMax': 6.0,
+      'tempMin': 15, 'tempMax': 20,
+      'humidityMin': 65, 'humidityMax': 80,
+      'bestTime': '06:00 AM', 'frequency': 'Every 2–3 Days',
+      'tip': 'Potatoes need consistent moisture. Irregular watering causes misshapen tubers. Reduce watering as vines die back before harvest.',
     },
     'Onion': {
-      'moistureMin': 50,
-      'moistureMax': 70,
-      'phMin': 6.0,
-      'phMax': 7.0,
-      'bestTime': '06:00 AM',
-      'frequency': 'Every 3 Days',
-      'tip':
-          'Onions need consistent moisture early on. Reduce watering as bulbs mature.',
+      'moistureMin': 50, 'moistureMax': 70,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 13, 'tempMax': 24,
+      'humidityMin': 55, 'humidityMax': 70,
+      'bestTime': '06:00 AM', 'frequency': 'Every 3 Days',
+      'tip': 'Onions need consistent moisture early on. Reduce watering as bulbs mature and necks soften. Stop irrigation 2 weeks before harvest.',
+    },
+    'Pepper': {
+      'moistureMin': 55, 'moistureMax': 70,
+      'phMin': 6.0, 'phMax': 6.8,
+      'tempMin': 20, 'tempMax': 30,
+      'humidityMin': 60, 'humidityMax': 80,
+      'bestTime': '06:30 AM', 'frequency': 'Every 2–3 Days',
+      'tip': 'Peppers prefer deep, infrequent watering. Avoid wet foliage to prevent disease. Water stress at fruit set reduces yield.',
     },
     'Spinach': {
-      'moistureMin': 60,
-      'moistureMax': 75,
-      'phMin': 6.5,
-      'phMax': 7.5,
-      'bestTime': '05:30 AM',
-      'frequency': 'Every 2 Days',
-      'tip':
-          'Spinach prefers cool, moist conditions. Mulch to keep soil cool and retain moisture.',
+      'moistureMin': 60, 'moistureMax': 75,
+      'phMin': 6.0, 'phMax': 7.5,
+      'tempMin': 10, 'tempMax': 24,
+      'humidityMin': 60, 'humidityMax': 70,
+      'bestTime': '05:30 AM', 'frequency': 'Every 2 Days',
+      'tip': 'Spinach prefers cool, moist conditions. Mulch to keep soil cool and retain moisture. Bolts quickly in high heat.',
+    },
+    'Broccoli': {
+      'moistureMin': 60, 'moistureMax': 75,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 15, 'tempMax': 22,
+      'humidityMin': 60, 'humidityMax': 75,
+      'bestTime': '06:00 AM', 'frequency': 'Every 3–5 Days',
+      'tip': 'Broccoli needs consistent moisture for head development. Water stress causes premature flowering. Mulch to retain soil moisture and keep roots cool.',
+    },
+    'Other': {
+      'moistureMin': 50, 'moistureMax': 75,
+      'phMin': 6.0, 'phMax': 7.0,
+      'tempMin': 18, 'tempMax': 30,
+      'humidityMin': 60, 'humidityMax': 80,
+      'bestTime': '06:00 AM', 'frequency': 'Every 2–3 Days',
+      'tip': 'Maintain consistent soil moisture and check pH regularly. Irrigate early morning to reduce evaporation losses.',
     },
   };
 
   @override
   void initState() {
     super.initState();
-    _loadUserCrop();
+    _cropDatabase = Map.from(_defaultCropThresholds);
     _recommendations = _cropDatabase[_selectedCrop];
+    _loadUserCrop();
+    _loadCropThresholds();
+  }
+
+  /// Fetches crop thresholds from Firestore `crop_thresholds` collection.
+  /// Seeds the collection from [_defaultCropThresholds] if it is empty.
+  Future<void> _loadCropThresholds() async {
+    try {
+      final col = _firestore.collection('crop_thresholds');
+      final snap = await col.limit(1).get();
+
+      if (snap.docs.isEmpty) {
+        // First run — seed Firestore from defaults
+        final batch = _firestore.batch();
+        _defaultCropThresholds.forEach((crop, data) {
+          batch.set(col.doc(crop), data);
+        });
+        await batch.commit();
+      }
+
+      // Fetch all threshold docs
+      final allSnap = await col.get();
+      if (allSnap.docs.isEmpty) return;
+
+      final fetched = <String, Map<String, dynamic>>{};
+      for (final doc in allSnap.docs) {
+        fetched[doc.id] = Map<String, dynamic>.from(doc.data());
+      }
+
+      if (mounted) {
+        setState(() {
+          _cropDatabase = fetched;
+          _recommendations = _cropDatabase[_selectedCrop];
+        });
+      }
+    } catch (_) {
+      // Keep local defaults on any error
+    }
   }
 
   @override
@@ -189,36 +213,91 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Future<_FarmContext> _fetchFarmContext() async {
+    final user = _auth.currentUser;
     final deviceId = SelectedCropService().selectedCrop?.deviceId;
-    if (deviceId == null) return _FarmContext.empty();
 
-    try {
-      final rtdb = RtdbService();
-      final results = await Future.wait([
-        rtdb.getLiveData(deviceId),
-        rtdb.getSensorHealth(deviceId),
-        rtdb.isDeviceOnline(deviceId),
-        rtdb.getPumpStatus(deviceId),
-      ]);
+    // ── RTDB: live sensor data ──
+    Map<String, dynamic> sensorData = {};
+    Map<String, String> sensorHealth = {};
+    bool isOnline = false;
+    String? pumpStatus;
 
-      final liveSnapshot = results[0] as DataSnapshot;
-      final sensorHealth = results[1] as Map<String, String>;
-      final isOnline = results[2] as bool;
-      final pumpStatus = results[3] as String?;
-
-      final sensorData = liveSnapshot.exists && liveSnapshot.value != null
-          ? Map<String, dynamic>.from(liveSnapshot.value as Map)
-          : <String, dynamic>{};
-
-      return _FarmContext(
-        sensorData: sensorData,
-        sensorHealth: sensorHealth,
-        deviceOnline: isOnline,
-        pumpStatus: pumpStatus,
-      );
-    } catch (_) {
-      return _FarmContext.empty();
+    if (deviceId != null) {
+      try {
+        final rtdb = RtdbService();
+        final results = await Future.wait([
+          rtdb.getLiveData(deviceId),
+          rtdb.getSensorHealth(deviceId),
+          rtdb.isDeviceOnline(deviceId),
+          rtdb.getPumpStatus(deviceId),
+        ]);
+        final liveSnapshot = results[0] as DataSnapshot;
+        sensorHealth = results[1] as Map<String, String>;
+        isOnline = results[2] as bool;
+        pumpStatus = results[3] as String?;
+        if (liveSnapshot.exists && liveSnapshot.value != null) {
+          sensorData = Map<String, dynamic>.from(liveSnapshot.value as Map);
+        }
+      } catch (_) {}
     }
+
+    // ── Firestore: crops, irrigation rules, thresholds ──
+    List<Map<String, dynamic>> userCrops = [];
+    Map<String, dynamic>? irrigationRule;
+    Map<String, dynamic>? cropThreshold;
+
+    if (user != null) {
+      try {
+        // Kick off all futures simultaneously (parallel network calls)
+        final cropsF = _firestore
+            .collection('crops')
+            .where('farmer_id', isEqualTo: user.uid)
+            .where('status', isEqualTo: 'active')
+            .get();
+
+        final rulesF = _userCropId != null
+            ? _firestore
+                .collection('irrigation_rules')
+                .where('crop_id', isEqualTo: _userCropId)
+                .limit(1)
+                .get()
+            : null;
+
+        final threshF = _firestore
+            .collection('crop_thresholds')
+            .doc(_selectedCrop)
+            .get();
+
+        // Await results (they've been running in parallel since the futures were created)
+        final cropsSnap = await cropsF;
+        final rulesSnap = rulesF != null ? await rulesF : null;
+        final threshSnap = await threshF;
+
+        userCrops = cropsSnap.docs.map((d) {
+          final data = Map<String, dynamic>.from(d.data());
+          data['id'] = d.id;
+          return data;
+        }).toList();
+
+        if (rulesSnap != null && rulesSnap.docs.isNotEmpty) {
+          irrigationRule = Map<String, dynamic>.from(rulesSnap.docs.first.data());
+        }
+
+        if (threshSnap.exists && threshSnap.data() != null) {
+          cropThreshold = Map<String, dynamic>.from(threshSnap.data()!);
+        }
+      } catch (_) {}
+    }
+
+    return _FarmContext(
+      sensorData: sensorData,
+      sensorHealth: sensorHealth,
+      deviceOnline: isOnline,
+      pumpStatus: pumpStatus,
+      userCrops: userCrops,
+      irrigationRule: irrigationRule,
+      cropThreshold: cropThreshold,
+    );
   }
 
   Future<void> _openChatPanel() async {
@@ -226,15 +305,33 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       setState(() => _isChatLoading = true);
       final ctx = await _fetchFarmContext();
 
+      final statusLabel = ctx.deviceOnline ? '🟢 ONLINE' : '🔴 OFFLINE';
       final soil = ctx.sensorData['soil']?.toString() ?? 'N/A';
       final ph = ctx.sensorData['ph']?.toString() ?? 'N/A';
       final temp = ctx.sensorData['temp']?.toString() ?? 'N/A';
-      final statusLabel = ctx.deviceOnline ? 'ONLINE' : 'OFFLINE';
+      final humidity = ctx.sensorData['humidity']?.toString() ?? 'N/A';
+      final tank = ctx.sensorData['waterLevel']?.toString() ?? 'N/A';
+      final pump = ctx.pumpStatus ?? 'unknown';
+
+      final cropCount = ctx.userCrops.length;
+      final cropLine = cropCount > 0
+          ? '$cropCount active crop${cropCount > 1 ? 's' : ''} found'
+          : 'No active crops found';
+
+      final irrigLine = ctx.irrigationRule != null
+          ? 'Mode: ${ctx.irrigationRule!['mode'] ?? 'unknown'}'
+          : 'No irrigation rules set';
 
       _chatMessages.add({
         'role': 'assistant',
-        'text':
-            'Hello! I\'m your AI farm advisor.\n\nDevice: $statusLabel | Crop: $_selectedCrop\nSoil: $soil% | pH: $ph | Temp: $temp°C\n\nWhat would you like to know?',
+        'text': 'Hello! I\'m your AI farm advisor. I have access to your live sensor data and farm records.\n\n'
+            '**Device:** $statusLabel\n'
+            '**Crop focus:** $_selectedCrop | $cropLine\n\n'
+            '**Live Readings:**\n'
+            '• Soil: $soil% | pH: $ph | Temp: $temp°C\n'
+            '• Humidity: $humidity% | Tank: $tank% | Pump: $pump\n\n'
+            '**Irrigation:** $irrigLine\n\n'
+            'Ask me anything about your crop, sensors, or irrigation — I\'ll only answer based on your actual data.',
       });
       setState(() => _isChatLoading = false);
     }
@@ -252,6 +349,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     if (text.trim().isEmpty) return;
     _chatController.clear();
 
+    // Snapshot history BEFORE adding current message
+    final history = List<Map<String, String>>.from(_chatMessages);
+
     setState(() {
       _chatMessages.add({'role': 'user', 'text': text.trim()});
       _isChatLoading = true;
@@ -267,17 +367,21 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         deviceOnline: ctx.deviceOnline,
         pumpStatus: ctx.pumpStatus,
         userMessage: text.trim(),
+        conversationHistory: history,
+        userCrops: ctx.userCrops,
+        irrigationRule: ctx.irrigationRule,
+        cropThreshold: ctx.cropThreshold,
       );
       setState(() {
         _chatMessages.add({'role': 'assistant', 'text': reply});
         _isChatLoading = false;
       });
     } catch (e) {
+      final errorText = e.toString().contains('ClaudeException:')
+          ? e.toString().replaceFirst('ClaudeException: ', '')
+          : 'Unable to reach AI right now. Please check your connection and try again.';
       setState(() {
-        _chatMessages.add({
-          'role': 'assistant',
-          'text': 'Sorry, I couldn\'t connect right now. Please try again.',
-        });
+        _chatMessages.add({'role': 'assistant', 'text': errorText});
         _isChatLoading = false;
       });
     }
@@ -297,10 +401,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   List<String> get _suggestedQuestions => [
-        'Is my soil moisture good for $_selectedCrop?',
-        'What pH level does $_selectedCrop need?',
-        'When is the best time to water $_selectedCrop?',
-        'How often should I irrigate $_selectedCrop?',
+        'Is my soil moisture okay for $_selectedCrop?',
+        'Is my current temperature suitable?',
+        'How do I set up auto-irrigation?',
+        'How do I connect my device?',
+        'Is my pump working correctly?',
+        'What does my pH level mean for my crop?',
+        'How do I create a support ticket?',
+        'How do I add a new crop?',
       ];
 
   Widget _buildSuggestedQuestions(StateSetter setSheetState) {
@@ -418,7 +526,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                               ),
                             ),
                             Text(
-                              'Powered by Claude AI • $_selectedCrop',
+                              'Farm advisor & app guide • $_selectedCrop',
                               style: TextStyle(
                                 color: ThemeColors.textSecondary(context).withOpacity(0.5),
                                 fontSize: 12,
@@ -473,7 +581,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                             controller: _chatController,
                             style: TextStyle(color: ThemeColors.textPrimary(context)),
                             decoration: InputDecoration(
-                              hintText: 'Ask about your $_selectedCrop...',
+                              hintText: 'Ask about your crop or how to use the app...',
                               hintStyle: TextStyle(
                                 color: ThemeColors.textSecondary(context).withOpacity(0.4),
                               ),
@@ -698,6 +806,15 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Widget _buildTypingIndicator() {
+    // Cycle through contextual loading messages based on chat length
+    final hints = [
+      'Reading your sensor data...',
+      'Checking your farm records...',
+      'Analyzing crop conditions...',
+      'Preparing advice...',
+    ];
+    final hint = hints[(_chatMessages.length - 1) % hints.length];
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -726,7 +843,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              AppLocalizations.of(context).t('Analyzing your farm...'),
+              hint,
               style: TextStyle(
                 color: ThemeColors.textSecondary(context).withOpacity(0.5),
                 fontSize: 13,
@@ -762,49 +879,58 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
-  void _getRecommendations() {
-    setState(() => _isLoading = true);
-
-    Future.delayed(const Duration(milliseconds: 800), () {
-      setState(() {
-        _recommendations = _cropDatabase[_selectedCrop];
-        _isLoading = false;
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
-              _buildCropSelectorCard(),
-              const SizedBox(height: 24),
-              if (_recommendations != null) ...[
-                _buildOptimalSettingsCard(),
-                const SizedBox(height: 16),
-                _buildTipCard(),
-                const SizedBox(height: 16),
-                _buildAskAiBanner(),
-                const SizedBox(height: 16),
-                _buildApplyButton(),
-              ],
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildHeader(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
+                child: _buildCropSelector(),
+              ),
+            ),
+            if (_recommendations != null) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: _buildThresholdsSection(),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _buildTipCard(),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: _buildAskAiBanner(),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                  child: _buildApplyButton(),
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildHeader() {
-    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -812,18 +938,18 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              l10n.t('AI Assistant'),
+              AppLocalizations.of(context).t('AI Assistant'),
               style: TextStyle(
-                fontSize: 28,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 color: ThemeColors.textPrimary(context),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              l10n.t('Smart Crop Recommendations'),
+              AppLocalizations.of(context).t('Crop Threshold Recommendations'),
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: ThemeColors.textSecondary(context).withOpacity(0.5),
               ),
             ),
@@ -834,18 +960,18 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
+              color: AppColors.primary.withOpacity(0.12),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+              border: Border.all(color: AppColors.primary.withOpacity(0.35)),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 18),
-                const SizedBox(width: 6),
+                Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 18),
+                SizedBox(width: 6),
                 Text(
-                  l10n.t('Ask AI'),
-                  style: const TextStyle(
+                  'Ask AI',
+                  style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -859,13 +985,231 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
-  Widget _buildCropSelectorCard() {
-    final l10n = AppLocalizations.of(context);
+  Widget _buildCropSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 16, bottom: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'SELECT CROP',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.55),
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 44,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _cropTypes.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final crop = _cropTypes[i];
+              final selected = crop == _selectedCrop;
+              final emoji = _cropEmoji[crop] ?? '🌱';
+              return GestureDetector(
+                onTap: () => setState(() {
+                  _selectedCrop = crop;
+                  _recommendations = _cropDatabase[crop];
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.primary : ThemeColors.surface(context),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: selected ? AppColors.primary : ThemeColors.border(context),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(emoji, style: const TextStyle(fontSize: 15)),
+                      const SizedBox(width: 6),
+                      Text(
+                        crop,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? Colors.white : ThemeColors.textPrimary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThresholdsSection() {
+    if (_recommendations == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 3,
+              height: 14,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'OPTIMAL THRESHOLDS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: ThemeColors.textSecondary(context).withOpacity(0.55),
+                letterSpacing: 1,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '${_cropEmoji[_selectedCrop] ?? '🌱'} $_selectedCrop',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _buildThresholdCard(
+                icon: Icons.water_drop_rounded,
+                iconColor: AppColors.soilMoisture,
+                label: 'Soil Moisture',
+                minVal: (_recommendations!['moistureMin'] as num).toDouble(),
+                maxVal: (_recommendations!['moistureMax'] as num).toDouble(),
+                unit: '%',
+                scaleMax: 100,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildThresholdCard(
+                icon: Icons.science_rounded,
+                iconColor: AppColors.phLevel,
+                label: 'pH Level',
+                minVal: (_recommendations!['phMin'] as num).toDouble(),
+                maxVal: (_recommendations!['phMax'] as num).toDouble(),
+                unit: '',
+                scaleMax: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildThresholdCard(
+                icon: Icons.thermostat_rounded,
+                iconColor: AppColors.temperature,
+                label: 'Temperature',
+                minVal: (_recommendations!['tempMin'] as num?)?.toDouble() ?? 18,
+                maxVal: (_recommendations!['tempMax'] as num?)?.toDouble() ?? 30,
+                unit: '°C',
+                scaleMax: 50,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildThresholdCard(
+                icon: Icons.water_rounded,
+                iconColor: AppColors.humidity,
+                label: 'Humidity',
+                minVal: (_recommendations!['humidityMin'] as num?)?.toDouble() ?? 60,
+                maxVal: (_recommendations!['humidityMax'] as num?)?.toDouble() ?? 80,
+                unit: '%',
+                scaleMax: 100,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoCard(
+                icon: Icons.schedule_rounded,
+                iconColor: AppColors.warning,
+                label: 'Best Time',
+                value: _recommendations!['bestTime'] as String? ?? '—',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildInfoCard(
+                icon: Icons.repeat_rounded,
+                iconColor: AppColors.primary,
+                label: 'Frequency',
+                value: _recommendations!['frequency'] as String? ?? '—',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _fmtVal(double v) =>
+      v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
+
+  Widget _buildThresholdCard({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required double minVal,
+    required double maxVal,
+    required String unit,
+    required double scaleMax,
+  }) {
+    final barStart = (minVal / scaleMax).clamp(0.0, 1.0);
+    final barWidth = ((maxVal - minVal) / scaleMax).clamp(0.0, 1.0);
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: ThemeColors.surface(context),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
@@ -873,195 +1217,71 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.eco, color: AppColors.primary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                l10n.t('Select Crop'),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: ThemeColors.textPrimary(context),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 14),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.55),
+                  ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${_fmtVal(minVal)} – ${_fmtVal(maxVal)}$unit',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: ThemeColors.textPrimary(context),
+            ),
           ),
           const SizedBox(height: 8),
-          Text(
-            l10n.t('Vegetable Type'),
-            style: TextStyle(
-              fontSize: 13,
-              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: ThemeColors.bg(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: ThemeColors.border(context)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedCrop,
-                isExpanded: true,
-                dropdownColor: ThemeColors.surface(context),
-                icon: const Icon(
-                  Icons.keyboard_arrow_down,
-                  color: AppColors.textSecondaryDark,
-                ),
-                items: _cropTypes.map((crop) {
-                  return DropdownMenuItem<String>(
-                    value: crop,
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.eco,
-                          color: AppColors.primary,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          crop,
-                          style: TextStyle(
-                            color: ThemeColors.textPrimary(context),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final w = constraints.maxWidth;
+              return Stack(
+                children: [
+                  Container(
+                    height: 5,
+                    width: w,
+                    decoration: BoxDecoration(
+                      color: ThemeColors.border(context),
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedCrop = value);
-                  }
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton(
-              onPressed: _isLoading ? null : _getRecommendations,
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: ThemeColors.border(context)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primary,
-                        ),
-                      ),
-                    )
-                  : Text(
-                      l10n.t('Get Recommendations'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: ThemeColors.textPrimary(context),
+                  ),
+                  Positioned(
+                    left: barStart * w,
+                    child: Container(
+                      height: 5,
+                      width: (barWidth * w).clamp(4.0, w),
+                      decoration: BoxDecoration(
+                        color: iconColor,
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-            ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOptimalSettingsCard() {
-    if (_recommendations == null) return const SizedBox.shrink();
-    final l10n = AppLocalizations.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ThemeColors.border(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.auto_awesome,
-                color: AppColors.primary,
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                l10n.t('Optimal Settings'),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: ThemeColors.textPrimary(context),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSettingTile(
-                  icon: Icons.water_drop,
-                  iconColor: AppColors.soilMoisture,
-                  label: l10n.t('Moisture Range'),
-                  value:
-                      '${_recommendations!['moistureMin']} - ${_recommendations!['moistureMax']}%',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSettingTile(
-                  icon: Icons.science,
-                  iconColor: AppColors.phLevel,
-                  label: l10n.t('Ideal pH'),
-                  value:
-                      '${_recommendations!['phMin']} - ${_recommendations!['phMax']}',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSettingTile(
-                  icon: Icons.wb_sunny,
-                  iconColor: AppColors.warning,
-                  label: l10n.t('Best Time'),
-                  value: _recommendations!['bestTime'],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSettingTile(
-                  icon: Icons.calendar_today,
-                  iconColor: AppColors.primary,
-                  label: l10n.t('Frequency'),
-                  value: _recommendations!['frequency'],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingTile({
+  Widget _buildInfoCard({
     required IconData icon,
     required Color iconColor,
     required String label,
@@ -1070,36 +1290,46 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ThemeColors.bg(context),
-        borderRadius: BorderRadius.circular(12),
+        color: ThemeColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ThemeColors.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
-              Icon(icon, color: iconColor, size: 18),
-              const SizedBox(width: 6),
-              Flexible(
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: iconColor, size: 14),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
                 child: Text(
-                  value,
+                  label,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: ThemeColors.textPrimary(context),
+                    color: ThemeColors.textSecondary(context).withOpacity(0.55),
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: ThemeColors.textPrimary(context),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1108,27 +1338,47 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Widget _buildTipCard() {
     if (_recommendations == null) return const SizedBox.shrink();
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.1),
+        color: AppColors.primary.withOpacity(0.07),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.info.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, color: AppColors.info, size: 22),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary, size: 16),
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              _recommendations!['tip'],
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.info,
-                height: 1.4,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pro Tip',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _recommendations!['tip'] as String? ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ThemeColors.textPrimary(context),
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1137,33 +1387,32 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Widget _buildAskAiBanner() {
-    final l10n = AppLocalizations.of(context);
     return GestureDetector(
       onTap: _openChatPanel,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.08),
+          color: ThemeColors.surface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+          border: Border.all(color: ThemeColors.border(context)),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 20),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    l10n.t('Have questions about your crop?'),
+                    'Have questions about your crop?',
                     style: TextStyle(
                       color: ThemeColors.textPrimary(context),
                       fontSize: 13,
@@ -1172,16 +1421,24 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    l10n.t('Chat with your AI farm advisor'),
+                    'Chat with your AI farm advisor →',
                     style: TextStyle(
-                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                      color: AppColors.primary.withOpacity(0.7),
                       fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.chevron_right, color: Colors.white, size: 16),
+            ),
           ],
         ),
       ),
@@ -1245,8 +1502,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         'mode': 'auto',
         'soil_min': _recommendations!['moistureMin'],
         'soil_max': _recommendations!['moistureMax'],
-        'ph_min': _recommendations!['phMin'],
-        'ph_max': _recommendations!['phMax'],
         'schedule': 'morning',
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -1309,12 +1564,18 @@ class _FarmContext {
   final Map<String, String> sensorHealth;
   final bool deviceOnline;
   final String? pumpStatus;
+  final List<Map<String, dynamic>> userCrops;
+  final Map<String, dynamic>? irrigationRule;
+  final Map<String, dynamic>? cropThreshold;
 
   _FarmContext({
     required this.sensorData,
     required this.sensorHealth,
     required this.deviceOnline,
     required this.pumpStatus,
+    this.userCrops = const [],
+    this.irrigationRule,
+    this.cropThreshold,
   });
 
   factory _FarmContext.empty() => _FarmContext(

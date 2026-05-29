@@ -38,8 +38,6 @@ import '../more/notifications/notifications_screen.dart';
 ///   mode: "auto"
 ///   soil_min: 30
 ///   soil_max: 60
-///   ph_min: 6.0
-///   ph_max: 7.5
 ///   updatedAt: Timestamp
 ///
 /// Shows:
@@ -76,8 +74,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   // Auto mode settings
   double _soilMin = 30;
   double _soilMax = 60;
-  double _phMin = 6.0;
-  double _phMax = 7.5;
 
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
   StreamSubscription<LiveSensorData>? _sensorDataSubscription;
@@ -87,8 +83,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
   bool _isConnected = false;
   int _waterLevel = 0;
   int _currentSoil = 0;
-  double _currentPh = 7.0;
-  String _lastPumpOn = 'Never';
+String _lastPumpOn = 'Never';
 
   // Optimistic command tracking — prevents hardware listener from reverting
   // the UI before ESP32 catches up
@@ -225,8 +220,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       setState(() {
         _soilMin = (data['soil_min'] ?? 30).toDouble();
         _soilMax = (data['soil_max'] ?? 60).toDouble();
-        _phMin = (data['ph_min'] ?? 6.0).toDouble();
-        _phMax = (data['ph_max'] ?? 7.5).toDouble();
       });
     }
   }
@@ -275,7 +268,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
       _isConnected = data.isOnline;
       _waterLevel = data.waterLevel;
       _currentSoil = data.soil;
-      _currentPh = data.ph;
     });
 
     // Pump state — respect command pending to preserve optimistic UI
@@ -809,6 +801,10 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         children: [
           // System Status with live sensor values
           _buildAutoSystemStatus(l10n),
+          const SizedBox(height: 20),
+
+          // How it works info card
+          _buildAutoHowItWorksCard(l10n),
           const SizedBox(height: 24),
 
           // Automation Rules Title
@@ -822,7 +818,7 @@ class _IrrigationScreenState extends State<IrrigationScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            l10n.t('Configure thresholds for auto-irrigation'),
+            l10n.t('Set soil moisture thresholds to trigger irrigation'),
             style: TextStyle(
               fontSize: 14,
               color: ThemeColors.textSecondary(context).withOpacity(0.5),
@@ -832,10 +828,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
           // Soil Moisture Rule (with live value from RTDB)
           _buildSoilMoistureRule(l10n),
-          const SizedBox(height: 16),
-
-          // pH Level Rule (with live value from RTDB)
-          _buildPhLevelRule(l10n),
           const SizedBox(height: 24),
 
           // Save Button
@@ -849,6 +841,95 @@ class _IrrigationScreenState extends State<IrrigationScreen>
     );
   }
 
+  /// Explains how auto-irrigation trigger logic works
+  Widget _buildAutoHowItWorksCard(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_mode, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                l10n.t('How Auto-Irrigation Works'),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildHowItWorksStep(
+            Icons.arrow_downward,
+            l10n.t('Soil drops below Min'),
+            l10n.t('Pump turns ON automatically'),
+          ),
+          const SizedBox(height: 8),
+          _buildHowItWorksStep(
+            Icons.arrow_upward,
+            l10n.t('Soil reaches Max'),
+            l10n.t('Pump turns OFF automatically'),
+          ),
+          const SizedBox(height: 8),
+          _buildHowItWorksStep(
+            Icons.water_drop_outlined,
+            l10n.t('Tank below 15%'),
+            l10n.t('Pump blocked — low water protection'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHowItWorksStep(IconData icon, String trigger, String action) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: AppColors.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: '$trigger  →  ',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.7),
+                  ),
+                ),
+                TextSpan(
+                  text: action,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: ThemeColors.textPrimary(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
   /// Auto mode system status with live sensor values
   Widget _buildAutoSystemStatus(AppLocalizations l10n) {
     if (_selectedDeviceId == null) {
@@ -857,160 +938,149 @@ class _IrrigationScreenState extends State<IrrigationScreen>
 
     final isConnected = _isConnected;
     final soil = _currentSoil;
-    final ph = _currentPh;
+    final tank = _waterLevel;
+    final isTankLow = tank < 30;
 
     return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: ThemeColors.surface(context),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ThemeColors.border(context)),
-          ),
-          child: Column(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: ThemeColors.surface(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: ThemeColors.border(context)),
+      ),
+      child: Column(
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: isConnected
-                                    ? AppColors.primary
-                                    : AppColors.error,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        (isConnected
-                                                ? AppColors.primary
-                                                : AppColors.error)
-                                            .withOpacity(0.5),
-                                    blurRadius: 6,
-                                  ),
-                                ],
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: isConnected ? AppColors.primary : AppColors.error,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isConnected ? AppColors.primary : AppColors.error)
+                                    .withOpacity(0.5),
+                                blurRadius: 6,
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              isConnected ? 'CONNECTED' : 'DISCONNECTED',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: isConnected
-                                    ? AppColors.primary
-                                    : AppColors.error,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          l10n.t('System Status'),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: ThemeColors.textPrimary(context),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 8),
                         Text(
-                          _isPumpActive
-                              ? 'Pump Active • Flow: 12 L/min'
-                              : 'Auto Mode Active',
+                          isConnected ? 'CONNECTED' : 'DISCONNECTED',
                           style: TextStyle(
-                            fontSize: 14,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isConnected ? AppColors.primary : AppColors.error,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.t('System Status'),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: ThemeColors.textPrimary(context),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.water_drop,
-                      color: AppColors.primary,
-                      size: 36,
+                    const SizedBox(height: 4),
+                    Text(
+                      _isPumpActive
+                          ? 'Pump Active • Flow: 12 L/min'
+                          : 'Auto Mode Active',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              // Live sensor values
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: ThemeColors.bg(context),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.water_drop,
-                            color: AppColors.soilMoisture,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Soil: $soil%',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: ThemeColors.textPrimary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: ThemeColors.bg(context),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.science,
-                            color: AppColors.phLevel,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'pH: ${ph.toStringAsFixed(1)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: ThemeColors.textPrimary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.water_drop, color: AppColors.primary, size: 36),
               ),
             ],
           ),
-        );
+          const SizedBox(height: 16),
+          // Live readings — soil moisture + tank level
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ThemeColors.bg(context),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.water_drop, color: AppColors.soilMoisture, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Soil: $soil%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: ThemeColors.textPrimary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ThemeColors.bg(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: isTankLow
+                        ? Border.all(color: AppColors.warning.withOpacity(0.4))
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.water,
+                        color: isTankLow ? AppColors.warning : AppColors.primary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Tank: $tank%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isTankLow ? AppColors.warning : ThemeColors.textPrimary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   /// Soil Moisture Rule with live current value
@@ -1104,257 +1174,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
                 max: 100,
                 onChanged: (v) => setState(() => _soilMax = v),
                 color: AppColors.soilMoisture,
-              ),
-            ],
-          ),
-        );
-  }
-
-  /// pH Level Rule with live current value
-  Widget _buildPhLevelRule(AppLocalizations l10n) {
-    final currentPh = _currentPh;
-
-    return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: ThemeColors.surface(context),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: ThemeColors.border(context)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.phLevel.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.science,
-                      color: AppColors.phLevel,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('pH Level'),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textPrimary(context),
-                          ),
-                        ),
-                        Text(
-                          l10n.t('Acidity Tolerance'),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondaryDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${currentPh.toStringAsFixed(1)} pH',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: ThemeColors.textPrimary(context),
-                        ),
-                      ),
-                      Text(
-                        l10n.t('Current'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // pH Inputs
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('MIN PH'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ThemeColors.bg(context),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: ThemeColors.border(context)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _phMin.toStringAsFixed(1),
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: ThemeColors.textPrimary(context),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (_phMin > 0) {
-                                        setState(() => _phMin -= 0.1);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: ThemeColors.surface(context),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.remove,
-                                        size: 16,
-                                        color: ThemeColors.icon(context),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (_phMin < 14) {
-                                        setState(() => _phMin += 0.1);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: ThemeColors.surface(context),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.add,
-                                        size: 16,
-                                        color: ThemeColors.icon(context),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('MAX PH'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ThemeColors.bg(context),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: ThemeColors.border(context)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _phMax.toStringAsFixed(1),
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: ThemeColors.textPrimary(context),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (_phMax > 0) {
-                                        setState(() => _phMax -= 0.1);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: ThemeColors.surface(context),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.remove,
-                                        size: 16,
-                                        color: ThemeColors.icon(context),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GestureDetector(
-                                    onTap: () {
-                                      if (_phMax < 14) {
-                                        setState(() => _phMax += 0.1);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: ThemeColors.surface(context),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.add,
-                                        size: 16,
-                                        color: ThemeColors.icon(context),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -1676,8 +1495,6 @@ class _IrrigationScreenState extends State<IrrigationScreen>
         'mode': 'auto',
         'soil_min': _soilMin,
         'soil_max': _soilMax,
-        'ph_min': _phMin,
-        'ph_max': _phMax,
         'schedule': 'morning',
         'updatedAt': FieldValue.serverTimestamp(),
       };

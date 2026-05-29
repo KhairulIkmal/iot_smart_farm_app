@@ -27,7 +27,16 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   String _ticketStatus = 'open';
   String? _farmerName;
   bool _sending = false;
+  bool _inputEmpty = true;
   int _prevMessageCount = 0;
+
+  static const _chatSuggestions = [
+    'My device keeps going offline',
+    'The sensor readings seem wrong',
+    'Pump is not turning on',
+    'How do I reset my device?',
+    'The app is not showing data',
+  ];
 
   // uid → photoURL (null = no photo, absent = not yet fetched)
   final Map<String, String?> _photoCache = {};
@@ -37,6 +46,10 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     super.initState();
     _clearUnread();
     _fetchFarmerName();
+    _inputController.addListener(() {
+      final empty = _inputController.text.isEmpty;
+      if (empty != _inputEmpty) setState(() => _inputEmpty = empty);
+    });
   }
 
   @override
@@ -357,7 +370,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
               ),
-              child: Container(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildChatSuggestions(),
+                  Container(
               padding: const EdgeInsets.only(
                 left: 16,
                 right: 16,
@@ -423,9 +440,48 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                   ),
                 ],
               ),
-            ),
+                  ),
+                ],
+              ), // closes Column
             ), // closes Padding(viewInsets)
         ],
+      ),
+    );
+  }
+
+  Widget _buildChatSuggestions() {
+    if (!_inputEmpty) return const SizedBox.shrink();
+    return Container(
+      color: ThemeColors.surface(context),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (int i = 0; i < _chatSuggestions.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _inputController.text = _chatSuggestions[i],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                  ),
+                  child: Text(
+                    _chatSuggestions[i],
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
