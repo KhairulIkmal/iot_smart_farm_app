@@ -1413,7 +1413,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         'mode': 'auto',
         'soil_min': _recommendations!['moistureMin'],
         'soil_max': _recommendations!['moistureMax'],
-        'schedule': 'morning',
         'updatedAt': FieldValue.serverTimestamp(),
       };
 

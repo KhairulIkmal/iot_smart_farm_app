@@ -11,27 +11,6 @@ import '../analytics/sensor_graph_screen.dart';
 
 /// ------------------------------------------------------------
 /// SENSORS SCREEN
-///
-/// Firebase RTDB Structure:
-/// sensors/
-///   ESP32_001/
-///     humidity: 70
-///     lastSeen: 1700000000
-///     ph: 6.3
-///     sensorHealth/
-///       ph: "ok"
-///       soil: "ok"
-///       waterLevel: "error"
-///     soil: 45
-///     temp: 30
-///     waterLevel: 80
-///
-/// Shows:
-/// - Real-time sensor data with live updates
-/// - Historical graphs (last 6 hours)
-/// - Sensor health status
-/// - Water tank with usage trend
-/// - Soil pH with scale
 /// ------------------------------------------------------------
 class SensorsScreen extends StatefulWidget {
   const SensorsScreen({super.key});
@@ -40,7 +19,8 @@ class SensorsScreen extends StatefulWidget {
   State<SensorsScreen> createState() => _SensorsScreenState();
 }
 
-class _SensorsScreenState extends State<SensorsScreen> {
+class _SensorsScreenState extends State<SensorsScreen>
+    with SingleTickerProviderStateMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final SelectedCropService _selectedCropService = SelectedCropService();
@@ -48,9 +28,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
   String? _selectedDeviceId;
   String? _selectedCropId;
   bool _isRefreshing = false;
+  bool _isConnected = false;
   DateTime _lastUpdated = DateTime.now();
 
-  // Live sensor values (updated by single stream subscription)
+  // Live sensor values
   int _soil = 0;
   double _ph = 0.0;
   int _temp = 0;
@@ -60,7 +41,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
   String _phHealth = 'ok';
   String _waterHealth = 'ok';
 
-  // Historical data for charts (simulated time-series)
+  // Trend history
   List<double> _soilHistory = [];
   List<double> _tempHistory = [];
   List<double> _humidityHistory = [];
@@ -70,14 +51,26 @@ class _SensorsScreenState extends State<SensorsScreen> {
   StreamSubscription<SelectedCropData?>? _cropSelectionSubscription;
   StreamSubscription<DocumentSnapshot>? _cropNameSubscription;
 
-  // Header display name — subscription-based, not rebuilt on every RTDB event
   String _cropDisplayName = '';
+
+  // Live dot pulse animation
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
 
   @override
   void initState() {
     super.initState();
-    // Listen to crop selection changes from dashboard
-    _cropSelectionSubscription = _selectedCropService.selectedCropStream.listen((cropData) {
+
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+
+    _cropSelectionSubscription =
+        _selectedCropService.selectedCropStream.listen((cropData) {
       if (cropData != null) {
         setState(() {
           _selectedCropId = cropData.cropId;
@@ -90,12 +83,12 @@ class _SensorsScreenState extends State<SensorsScreen> {
           _selectedCropId = null;
           _selectedDeviceId = null;
           _cropDisplayName = '';
+          _isConnected = false;
         });
         _cropNameSubscription?.cancel();
       }
     });
 
-    // Load initial selection if available
     final currentSelection = _selectedCropService.selectedCrop;
     if (currentSelection != null) {
       setState(() {
@@ -109,6 +102,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
 
   @override
   void dispose() {
+    _pulseCtrl.dispose();
     _sensorSubscription?.cancel();
     _cropSelectionSubscription?.cancel();
     _cropNameSubscription?.cancel();
@@ -126,26 +120,17 @@ class _SensorsScreenState extends State<SensorsScreen> {
       final data = doc.data() as Map<String, dynamic>;
       setState(() {
         _cropDisplayName =
-            '${data['crop_type'] ?? 'Unknown'} - ${data['field_name'] ?? 'Field A'}';
+            '${data['crop_type'] ?? 'Unknown'} — ${data['field_name'] ?? 'Field A'}';
       });
     });
   }
 
-  /// Load historical data from RTDB
-  /// In production, you would have a time-series structure like:
-  /// sensors/{deviceId}/history/{timestamp}
-  /// For now, we generate sample history based on current values
   void _loadHistoricalData() {
     if (_selectedDeviceId == null) return;
-
     LiveSensorService().setDevice(_selectedDeviceId);
-
     _sensorSubscription?.cancel();
-
-    // Seed from cache immediately — no blank screen while waiting for first event
     final cached = LiveSensorService().currentData;
     if (cached != null) _applySensorData(cached);
-
     _sensorSubscription = LiveSensorService().stream.listen((data) {
       if (!mounted) return;
       _applySensorData(data);
@@ -171,23 +156,23 @@ class _SensorsScreenState extends State<SensorsScreen> {
       _humidityHistory = _generateHistory(humidity, 7);
       _waterHistory = _generateWaterHistory(water, 7);
       _lastUpdated = DateTime.now();
+      _isConnected = true;
     });
   }
 
   List<double> _generateHistory(double currentValue, int points) {
     final history = <double>[];
     for (int i = 0; i < points; i++) {
-      final variation = (i - points / 2) * 2; // Create some variation
+      final variation = (i - points / 2) * 2;
       history.add((currentValue + variation).clamp(0, 100));
     }
     return history;
   }
 
   List<double> _generateWaterHistory(double currentValue, int points) {
-    // Water level decreases over time (usage)
     final history = <double>[];
     for (int i = 0; i < points; i++) {
-      final decrease = (points - i - 1) * 3; // Gradual decrease
+      final decrease = (points - i - 1) * 3;
       history.add((currentValue + decrease).clamp(0, 100));
     }
     return history;
@@ -207,6 +192,9 @@ class _SensorsScreenState extends State<SensorsScreen> {
     return 'Updated ${diff.inHours}h ago';
   }
 
+  // ─────────────────────────────────────────────
+  // BUILD
+  // ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -223,19 +211,17 @@ class _SensorsScreenState extends State<SensorsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 _buildHeader(l10n),
                 const SizedBox(height: 24),
-
-                // Sensor Cards
                 if (_selectedDeviceId != null) ...[
+                  // Order: soil sensors first, then air, then water tank
                   _buildSoilMoistureCard(l10n),
+                  const SizedBox(height: 16),
+                  _buildSoilPhCard(l10n),
                   const SizedBox(height: 16),
                   _buildAirConditionsCard(l10n),
                   const SizedBox(height: 16),
                   _buildWaterTankCard(l10n),
-                  const SizedBox(height: 16),
-                  _buildSoilPhCard(l10n),
                   const SizedBox(height: 24),
                 ] else
                   _buildNoDeviceCard(l10n),
@@ -247,9 +233,9 @@ class _SensorsScreenState extends State<SensorsScreen> {
     );
   }
 
-  /// ------------------------------------------------
-  /// HEADER
-  /// ------------------------------------------------
+  // ─────────────────────────────────────────────
+  // HEADER
+  // ─────────────────────────────────────────────
   Widget _buildHeader(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,16 +255,40 @@ class _SensorsScreenState extends State<SensorsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  l10n.t('Real-time monitoring'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                  ),
+                Row(
+                  children: [
+                    // Live indicator dot
+                    AnimatedBuilder(
+                      animation: _pulseAnim,
+                      builder: (_, __) => Opacity(
+                        opacity: _isConnected ? _pulseAnim.value : 0.35,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isConnected
+                                ? AppColors.primary
+                                : ThemeColors.textSecondary(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isConnected
+                          ? l10n.t('Live · Real-time monitoring')
+                          : l10n.t('Real-time monitoring'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            // Refresh Button
+            // Refresh button
             GestureDetector(
               onTap: _isRefreshing ? null : _refreshData,
               child: Container(
@@ -294,9 +304,8 @@ class _SensorsScreenState extends State<SensorsScreen> {
                         height: 22,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.primary,
-                          ),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.primary),
                         ),
                       )
                     : const Icon(Icons.refresh, color: AppColors.primary, size: 22),
@@ -304,789 +313,525 @@ class _SensorsScreenState extends State<SensorsScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
         if (_selectedDeviceId != null && _cropDisplayName.isNotEmpty) ...[
-          Text(
-            l10n.t('MONITORING'),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _cropDisplayName,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: ThemeColors.textPrimary(context),
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.eco_rounded,
+                        color: AppColors.primary, size: 13),
+                    const SizedBox(width: 6),
+                    Text(
+                      _cropDisplayName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _getTimeAgo(l10n),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.45),
+                ),
+              ),
+            ],
           ),
         ],
       ],
     );
   }
 
-  /// ------------------------------------------------
-  /// SOIL MOISTURE CARD WITH GRAPH
-  /// RTDB: sensors/{deviceId}/soil
-  /// RTDB: sensors/{deviceId}/sensorHealth/soil
-  /// ------------------------------------------------
+  // ─────────────────────────────────────────────
+  // SOIL MOISTURE CARD
+  // ─────────────────────────────────────────────
   Widget _buildSoilMoistureCard(AppLocalizations l10n) {
     final soilMoisture = _soil;
     final hasError = _soilHealth == 'error';
     final status = _getSoilStatus(soilMoisture, l10n);
     final statusColor = _getSoilStatusColor(soilMoisture);
+    final subtitle = _cropDisplayName.isNotEmpty ? _cropDisplayName : 'Soil Sensor';
 
-    return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SensorGraphScreen(
-                  deviceId: _selectedDeviceId!,
-                  sensorType: 'soil',
-                ),
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: ThemeColors.surface(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: hasError
-                    ? AppColors.error.withOpacity(0.5)
-                    : ThemeColors.border(context),
-              ),
-            ),
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: hasError
-                          ? AppColors.error.withOpacity(0.1)
-                          : AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.water_drop,
-                      color: hasError ? AppColors.error : AppColors.primary,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('Soil Moisture'),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textPrimary(context),
-                          ),
-                        ),
-                        Text(
-                          'Sensor ID: ${_selectedDeviceId ?? "N/A"}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        hasError ? '--%' : '$soilMoisture%',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (hasError ? AppColors.error : statusColor)
-                              .withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          hasError ? 'Error' : status,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: hasError ? AppColors.error : statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Last 6 Hours Label
-              Text(
-                l10n.t('Last 6 Hours'),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Bar Chart
-              _buildBarChart(_soilHistory, AppColors.soilMoisture),
-              const SizedBox(height: 12),
-
-              // Time labels
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    l10n.t('6h ago'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
-                    ),
-                  ),
-                  Text(
-                    l10n.t('Now'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Footer
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _getTimeAgo(l10n),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        l10n.t('Details'),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+    return _SensorCard(
+      onTap: () => _openGraph('soil'),
+      hasError: hasError,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(
+            icon: Icons.water_drop_rounded,
+            iconColor: hasError ? AppColors.error : AppColors.soilMoisture,
+            title: l10n.t('Soil Moisture'),
+            subtitle: subtitle,
+            value: hasError ? '--%' : '$soilMoisture%',
+            valueColor: hasError
+                ? AppColors.error
+                : ThemeColors.textPrimary(context),
+            status: hasError ? 'Error' : status,
+            statusColor: hasError ? AppColors.error : statusColor,
           ),
-        ),
-      );
+          const SizedBox(height: 20),
+          _trendLabel(l10n),
+          const SizedBox(height: 10),
+          _buildBarChart(_soilHistory, AppColors.soilMoisture),
+          const SizedBox(height: 16),
+          _cardFooter(l10n, actionLabel: l10n.t('Details')),
+        ],
+      ),
+    );
   }
 
-  /// ------------------------------------------------
-  /// AIR CONDITIONS CARD
-  /// RTDB: sensors/{deviceId}/temp
-  /// RTDB: sensors/{deviceId}/humidity
-  /// ------------------------------------------------
-  Widget _buildAirConditionsCard(AppLocalizations l10n) {
-    final temp = _temp;
-    final humidity = _humidity;
-    final tempStatus = _getTempStatus(temp, l10n);
-    final tempStatusColor = _getTempStatusColor(temp);
-
-    return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SensorGraphScreen(
-                  deviceId: _selectedDeviceId!,
-                  sensorType: 'temp',
-                ),
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: ThemeColors.surface(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: ThemeColors.border(context)),
-            ),
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.temperature.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.thermostat,
-                      color: AppColors.temperature,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('Air Conditions'),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textPrimary(context),
-                          ),
-                        ),
-                        Text(
-                          'Greenhouse 1',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '$temp°C',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: ThemeColors.textPrimary(context),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: tempStatusColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          tempStatus,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: tempStatusColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Sub-values
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: ThemeColors.bg(context),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.t('Temperature'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$temp°C',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: ThemeColors.textPrimary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: ThemeColors.bg(context),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.t('Humidity'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$humidity%',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: ThemeColors.textPrimary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Footer
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _getTimeAgo(l10n),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        l10n.t('History'),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-  }
-
-  /// ------------------------------------------------
-  /// WATER TANK CARD WITH USAGE TREND
-  /// RTDB: sensors/{deviceId}/waterLevel
-  /// RTDB: sensors/{deviceId}/sensorHealth/waterLevel
-  /// ------------------------------------------------
-  Widget _buildWaterTankCard(AppLocalizations l10n) {
-    final waterLevel = _waterLevel;
-    final hasError = _waterHealth == 'error';
-    final isLow = waterLevel < 30 && !hasError;
-
-    return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SensorGraphScreen(
-                  deviceId: _selectedDeviceId!,
-                  sensorType: 'waterLevel',
-                ),
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: ThemeColors.surface(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: hasError || isLow
-                    ? AppColors.error.withOpacity(0.5)
-                    : ThemeColors.border(context),
-              ),
-            ),
-            child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: hasError || isLow
-                          ? AppColors.error.withOpacity(0.1)
-                          : AppColors.soilMoisture.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      hasError ? Icons.error_outline : Icons.water,
-                      color: hasError || isLow
-                          ? AppColors.error
-                          : AppColors.soilMoisture,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('Main Tank'),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textPrimary(context),
-                          ),
-                        ),
-                        Text(
-                          l10n.t('Capacity: 5000L'),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        hasError ? '--%' : '$waterLevel%',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: hasError || isLow
-                              ? AppColors.error
-                              : ThemeColors.textPrimary(context),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              (hasError || isLow
-                                      ? AppColors.error
-                                      : AppColors.primary)
-                                  .withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          hasError
-                              ? l10n.t('Sensor Error')
-                              : isLow
-                              ? l10n.t('Low Level')
-                              : l10n.t('Normal'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: hasError || isLow
-                                ? AppColors.error
-                                : AppColors.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Usage Trend
-              Text(
-                l10n.t('Usage Trend'),
-                style: TextStyle(
-                  fontSize: 13,
-                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Usage Trend Bars (color changes as level drops)
-              _buildUsageTrendBars(_waterHistory),
-              const SizedBox(height: 16),
-
-              // Footer
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    isLow ? l10n.t('Requires Refill') : l10n.t('Level OK'),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isLow ? AppColors.error : AppColors.primary,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        l10n.t('Alerts'),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-  }
-
-  /// ------------------------------------------------
-  /// SOIL PH CARD WITH SCALE
-  /// RTDB: sensors/{deviceId}/ph
-  /// RTDB: sensors/{deviceId}/sensorHealth/ph
-  /// ------------------------------------------------
+  // ─────────────────────────────────────────────
+  // SOIL PH CARD
+  // ─────────────────────────────────────────────
   Widget _buildSoilPhCard(AppLocalizations l10n) {
     final ph = _ph;
     final hasError = _phHealth == 'error';
     final status = _getPhStatus(ph, l10n);
     final statusColor = _getPhStatusColor(ph);
+    final subtitle = _cropDisplayName.isNotEmpty ? _cropDisplayName : 'Soil Sensor';
 
-    return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SensorGraphScreen(
-                  deviceId: _selectedDeviceId!,
-                  sensorType: 'ph',
+    return _SensorCard(
+      onTap: () => _openGraph('ph'),
+      hasError: hasError,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(
+            icon: Icons.science_rounded,
+            iconColor: hasError ? AppColors.error : AppColors.phLevel,
+            title: l10n.t('Soil pH'),
+            subtitle: subtitle,
+            value: hasError ? '--' : ph.toStringAsFixed(1),
+            valueColor: hasError
+                ? AppColors.error
+                : ThemeColors.textPrimary(context),
+            status: hasError ? 'Error' : status,
+            statusColor: hasError ? AppColors.error : statusColor,
+          ),
+          const SizedBox(height: 20),
+          _buildPhScale(ph),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                l10n.t('Acidic'),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.4),
                 ),
               ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(20),
+              Text(
+                'Neutral',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.4),
+                ),
+              ),
+              Text(
+                l10n.t('Alkaline'),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _cardFooter(l10n, actionLabel: l10n.t('Analyze')),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // AIR CONDITIONS CARD
+  // ─────────────────────────────────────────────
+  Widget _buildAirConditionsCard(AppLocalizations l10n) {
+    final temp = _temp;
+    final humidity = _humidity;
+    final tempStatus = _getTempStatus(temp, l10n);
+    final tempStatusColor = _getTempStatusColor(temp);
+    final humidityStatus = _getHumidityStatus(humidity, l10n);
+    final humidityStatusColor = _getHumidityStatusColor(humidity);
+    final subtitle = _cropDisplayName.isNotEmpty ? _cropDisplayName : 'Ambient Sensor';
+
+    return _SensorCard(
+      onTap: () => _openGraph('temp'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Card title row — no big value, tiles are the primary display
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.temperature.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.device_thermostat_rounded,
+                  color: AppColors.temperature,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.t('Air Conditions'),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: ThemeColors.textPrimary(context),
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Temperature + Humidity tiles — each shows value AND status badge
+          Row(
+            children: [
+              Expanded(
+                child: _buildAirTile(
+                  icon: Icons.thermostat_rounded,
+                  iconColor: AppColors.temperature,
+                  label: l10n.t('Temperature'),
+                  value: '$temp°C',
+                  status: tempStatus,
+                  statusColor: tempStatusColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildAirTile(
+                  icon: Icons.water_rounded,
+                  iconColor: AppColors.humidity,
+                  label: l10n.t('Humidity'),
+                  value: '$humidity%',
+                  status: humidityStatus,
+                  statusColor: humidityStatusColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _trendLabel(l10n),
+          const SizedBox(height: 10),
+          _buildBarChart(_tempHistory, AppColors.temperature),
+          const SizedBox(height: 16),
+          _cardFooter(l10n, actionLabel: l10n.t('History')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAirTile({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required String status,
+    required Color statusColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ThemeColors.bg(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ThemeColors.border(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: iconColor),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.55),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: ThemeColors.textPrimary(context),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: ThemeColors.surface(context),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: hasError
-                    ? AppColors.error.withOpacity(0.5)
-                    : ThemeColors.border(context),
+              color: statusColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: statusColor,
               ),
             ),
-            child: Column(
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // WATER TANK CARD
+  // ─────────────────────────────────────────────
+  Widget _buildWaterTankCard(AppLocalizations l10n) {
+    final waterLevel = _waterLevel;
+    final hasError = _waterHealth == 'error';
+    final isLow = waterLevel < 30 && !hasError;
+
+    return _SensorCard(
+      onTap: () => _openGraph('waterLevel'),
+      hasError: hasError || isLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _cardHeader(
+            icon: hasError ? Icons.error_outline_rounded : Icons.water_rounded,
+            iconColor: hasError || isLow ? AppColors.error : AppColors.soilMoisture,
+            title: l10n.t('Main Tank'),
+            subtitle: 'Irrigation System',
+            value: hasError ? '--%' : '$waterLevel%',
+            valueColor: hasError || isLow
+                ? AppColors.error
+                : ThemeColors.textPrimary(context),
+            status: hasError
+                ? l10n.t('Sensor Error')
+                : isLow
+                    ? l10n.t('Low Level')
+                    : l10n.t('Normal'),
+            statusColor:
+                hasError || isLow ? AppColors.error : AppColors.primary,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            l10n.t('Usage Trend'),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: ThemeColors.textSecondary(context).withOpacity(0.5),
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildUsageTrendBars(_waterHistory),
+          const SizedBox(height: 16),
+          _cardFooter(
+            l10n,
+            actionLabel: l10n.t('History'),
+            leadingText: isLow ? l10n.t('Requires Refill') : l10n.t('Level OK'),
+            leadingColor: isLow ? AppColors.error : AppColors.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // SHARED CARD COMPONENTS
+  // ─────────────────────────────────────────────
+
+  /// Standard card header: icon + title/subtitle + big value + status badge
+  Widget _cardHeader({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required String value,
+    required Color valueColor,
+    required String status,
+    required Color statusColor,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: iconColor, size: 24),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: hasError
-                          ? AppColors.error.withOpacity(0.1)
-                          : AppColors.phLevel.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.science,
-                      color: hasError ? AppColors.error : AppColors.phLevel,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.t('Soil pH'),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeColors.textPrimary(context),
-                          ),
-                        ),
-                        Text(
-                          l10n.t('Zone A'),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        hasError ? '--' : ph.toStringAsFixed(1),
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: hasError ? AppColors.error : ThemeColors.textPrimary(context),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (hasError ? AppColors.error : statusColor)
-                              .withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          hasError ? 'Error' : status,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: hasError ? AppColors.error : statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: ThemeColors.textPrimary(context),
+                ),
               ),
-              const SizedBox(height: 20),
-
-              // pH Scale
-              _buildPhScale(ph),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    l10n.t('Acidic'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
-                    ),
-                  ),
-                  Text(
-                    l10n.t('Alkaline'),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.4),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Footer
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _getTimeAgo(l10n),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: ThemeColors.textSecondary(context).withOpacity(0.5),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        l10n.t('Analyze'),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ],
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
-      );
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  /// ------------------------------------------------
-  /// HELPER WIDGETS
-  /// ------------------------------------------------
+  /// "Trend" label — replaces the old misleading "Last 6 Hours"
+  Widget _trendLabel(AppLocalizations l10n) {
+    return Row(
+      children: [
+        Icon(
+          Icons.show_chart_rounded,
+          size: 13,
+          color: ThemeColors.textSecondary(context).withOpacity(0.4),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          'Trend',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: ThemeColors.textSecondary(context).withOpacity(0.5),
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
 
-  /// Bar chart for historical data with level indicator
+  /// Card footer row: timestamp left, action link right
+  Widget _cardFooter(
+    AppLocalizations l10n, {
+    required String actionLabel,
+    String? leadingText,
+    Color? leadingColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          leadingText ?? _getTimeAgo(l10n),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: leadingText != null ? FontWeight.w600 : FontWeight.normal,
+            color: leadingColor ??
+                ThemeColors.textSecondary(context).withOpacity(0.5),
+          ),
+        ),
+        Row(
+          children: [
+            Text(
+              actionLabel,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _openGraph(String sensorType) {
+    if (_selectedDeviceId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SensorGraphScreen(
+          deviceId: _selectedDeviceId!,
+          sensorType: sensorType,
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // CHART WIDGETS
+  // ─────────────────────────────────────────────
   Widget _buildBarChart(List<double> data, Color color) {
-    if (data.isEmpty) {
-      data = List.generate(7, (i) => 50.0);
-    }
-
+    if (data.isEmpty) data = List.generate(7, (_) => 50.0);
     return SizedBox(
       height: 50,
       child: Row(
@@ -1095,12 +840,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
           final index = entry.key;
           final value = entry.value;
           final isLast = index == data.length - 1;
-
           return Expanded(
             child: Stack(
               alignment: Alignment.bottomCenter,
               children: [
-                // Background bar (full height, faded)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   height: 50,
@@ -1109,14 +852,13 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                // Value bar (actual level)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   height: (value / 100) * 50,
                   decoration: BoxDecoration(
                     color: isLast
                         ? color
-                        : color.withOpacity(0.5 + (index * 0.05)),
+                        : color.withOpacity(0.35 + (index * 0.08)),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1128,12 +870,8 @@ class _SensorsScreenState extends State<SensorsScreen> {
     );
   }
 
-  /// Usage trend bars with level indicator
   Widget _buildUsageTrendBars(List<double> data) {
-    if (data.isEmpty) {
-      data = List.generate(7, (i) => 70.0 - (i * 5));
-    }
-
+    if (data.isEmpty) data = List.generate(7, (i) => 70.0 - (i * 5));
     return SizedBox(
       height: 50,
       child: Row(
@@ -1142,8 +880,6 @@ class _SensorsScreenState extends State<SensorsScreen> {
           final index = entry.key;
           final value = entry.value;
           final isLast = index == data.length - 1;
-
-          // Color based on water level
           Color barColor;
           if (value > 50) {
             barColor = AppColors.soilMoisture;
@@ -1152,12 +888,10 @@ class _SensorsScreenState extends State<SensorsScreen> {
           } else {
             barColor = AppColors.error;
           }
-
           return Expanded(
             child: Stack(
               alignment: Alignment.bottomCenter,
               children: [
-                // Background bar (full height, faded)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   height: 50,
@@ -1166,14 +900,13 @@ class _SensorsScreenState extends State<SensorsScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                // Value bar (actual level with color based on value)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 3),
                   height: (value / 100) * 50,
                   decoration: BoxDecoration(
                     color: isLast
                         ? barColor
-                        : barColor.withOpacity(0.6 + (index * 0.04)),
+                        : barColor.withOpacity(0.4 + (index * 0.07)),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1185,44 +918,46 @@ class _SensorsScreenState extends State<SensorsScreen> {
     );
   }
 
-  /// pH Scale with indicator
   Widget _buildPhScale(double ph) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final indicatorPosition = (ph / 14) * width;
-
         return Stack(
+          clipBehavior: Clip.none,
           children: [
-            // Gradient Scale
+            // Gradient bar
             Container(
-              height: 12,
+              height: 14,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(7),
                 gradient: const LinearGradient(
                   colors: [
-                    Color(0xFFE53935), // Red (acidic)
-                    Color(0xFFFF9800), // Orange
-                    Color(0xFFFFEB3B), // Yellow
-                    Color(0xFF4CAF50), // Green (neutral)
-                    Color(0xFF00BCD4), // Cyan
-                    Color(0xFF2196F3), // Blue
-                    Color(0xFF9C27B0), // Purple (alkaline)
+                    Color(0xFFE53935),
+                    Color(0xFFFF9800),
+                    Color(0xFFFFEB3B),
+                    Color(0xFF4CAF50),
+                    Color(0xFF00BCD4),
+                    Color(0xFF2196F3),
+                    Color(0xFF9C27B0),
                   ],
                 ),
               ),
             ),
-            // Indicator
+            // Indicator line
             Positioned(
-              left: indicatorPosition.clamp(0, width - 4),
-              top: 0,
+              left: indicatorPosition.clamp(2.0, width - 6),
+              top: -3,
               child: Container(
                 width: 4,
-                height: 12,
+                height: 20,
                 decoration: BoxDecoration(
                   color: ThemeColors.textPrimary(context),
                   borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: ThemeColors.bg(context), width: 1),
+                  border: Border.all(
+                    color: ThemeColors.bg(context),
+                    width: 1.5,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.3),
@@ -1249,7 +984,7 @@ class _SensorsScreenState extends State<SensorsScreen> {
       child: Column(
         children: [
           Icon(
-            Icons.sensors_off,
+            Icons.sensors_off_rounded,
             size: 48,
             color: ThemeColors.textSecondary(context).withOpacity(0.3),
           ),
@@ -1269,15 +1004,16 @@ class _SensorsScreenState extends State<SensorsScreen> {
               fontSize: 14,
               color: ThemeColors.textSecondary(context).withOpacity(0.5),
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  /// ------------------------------------------------
-  /// STATUS HELPERS
-  /// ------------------------------------------------
+  // ─────────────────────────────────────────────
+  // STATUS HELPERS
+  // ─────────────────────────────────────────────
   String _getSoilStatus(int value, AppLocalizations l10n) {
     if (value < 30) return l10n.t('Low');
     if (value > 80) return l10n.t('High');
@@ -1289,13 +1025,13 @@ class _SensorsScreenState extends State<SensorsScreen> {
     if (value < 30) return AppColors.warning;
     if (value > 80) return AppColors.warning;
     if (value >= 50 && value <= 70) return AppColors.primary;
-    return AppColors.primary;
+    return AppColors.info;
   }
 
   String _getTempStatus(int value, AppLocalizations l10n) {
     if (value < 15) return l10n.t('Cold');
     if (value > 35) return l10n.t('Hot');
-    if (value > 28) return l10n.t('Normal');
+    if (value > 28) return l10n.t('Warm');   // was incorrectly "Normal"
     return l10n.t('Normal');
   }
 
@@ -1304,6 +1040,20 @@ class _SensorsScreenState extends State<SensorsScreen> {
     if (value > 35) return AppColors.error;
     if (value > 28) return AppColors.warning;
     return AppColors.primary;
+  }
+
+  String _getHumidityStatus(int value, AppLocalizations l10n) {
+    if (value < 40) return l10n.t('Low');
+    if (value > 90) return l10n.t('High');
+    if (value >= 60 && value <= 80) return l10n.t('Optimal');
+    return l10n.t('Normal');
+  }
+
+  Color _getHumidityStatusColor(int value) {
+    if (value < 40) return AppColors.warning;
+    if (value > 90) return AppColors.warning;
+    if (value >= 60 && value <= 80) return AppColors.primary;
+    return AppColors.info;
   }
 
   String _getPhStatus(double value, AppLocalizations l10n) {
@@ -1316,5 +1066,40 @@ class _SensorsScreenState extends State<SensorsScreen> {
     if (value < 5.5) return AppColors.warning;
     if (value > 7.5) return AppColors.info;
     return AppColors.primary;
+  }
+}
+
+// ─────────────────────────────────────────────
+// SENSOR CARD WRAPPER
+// ─────────────────────────────────────────────
+class _SensorCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final bool hasError;
+
+  const _SensorCard({
+    required this.child,
+    required this.onTap,
+    this.hasError = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: ThemeColors.surface(context),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: hasError
+                ? AppColors.error.withOpacity(0.45)
+                : ThemeColors.border(context),
+          ),
+        ),
+        child: child,
+      ),
+    );
   }
 }
