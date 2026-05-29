@@ -67,7 +67,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 6.8,
       'tempMin': 21, 'tempMax': 27,
       'humidityMin': 65, 'humidityMax': 75,
-      'bestTime': '06:00 AM', 'frequency': 'Every 3–5 Days',
       'tip': 'Tomatoes need consistent moisture. Avoid wetting leaves to prevent disease. Critical watering during fruit set and expansion.',
     },
     'Chili': {
@@ -75,7 +74,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 20, 'tempMax': 30,
       'humidityMin': 60, 'humidityMax': 80,
-      'bestTime': '06:30 AM', 'frequency': 'Every 3–5 Days',
       'tip': 'Chili prefers well-drained soil. Avoid overwatering — it causes flower and fruit drop. Reduce watering at fruit maturity.',
     },
     'Lettuce': {
@@ -83,7 +81,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 15, 'tempMax': 22,
       'humidityMin': 60, 'humidityMax': 70,
-      'bestTime': '05:30 AM', 'frequency': 'Daily',
       'tip': 'Lettuce has shallow roots (15–30 cm). Keep soil consistently moist but not waterlogged. Grows best in cool conditions.',
     },
     'Cabbage': {
@@ -91,7 +88,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 15, 'tempMax': 22,
       'humidityMin': 60, 'humidityMax': 75,
-      'bestTime': '06:00 AM', 'frequency': 'Every 3–5 Days',
       'tip': 'Cabbage needs consistent moisture for head formation. Mulch to retain soil moisture. Critical period is during head development.',
     },
     'Cucumber': {
@@ -99,7 +95,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 18, 'tempMax': 30,
       'humidityMin': 60, 'humidityMax': 85,
-      'bestTime': '06:00 AM', 'frequency': 'Every 2–4 Days',
       'tip': 'Cucumbers need consistent moisture. Mulch helps retain soil moisture. Avoid wetting foliage to prevent fungal diseases.',
     },
     'Carrot': {
@@ -107,7 +102,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 6.8,
       'tempMin': 16, 'tempMax': 21,
       'humidityMin': 60, 'humidityMax': 75,
-      'bestTime': '06:00 AM', 'frequency': 'Every 2–3 Days',
       'tip': 'Carrots require consistent moisture during germination. Avoid over-watering to prevent root rot. Deep watering encourages straight root growth.',
     },
     'Potato': {
@@ -115,7 +109,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 5.0, 'phMax': 6.0,
       'tempMin': 15, 'tempMax': 20,
       'humidityMin': 65, 'humidityMax': 80,
-      'bestTime': '06:00 AM', 'frequency': 'Every 2–3 Days',
       'tip': 'Potatoes need consistent moisture. Irregular watering causes misshapen tubers. Reduce watering as vines die back before harvest.',
     },
     'Onion': {
@@ -123,7 +116,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 13, 'tempMax': 24,
       'humidityMin': 55, 'humidityMax': 70,
-      'bestTime': '06:00 AM', 'frequency': 'Every 3 Days',
       'tip': 'Onions need consistent moisture early on. Reduce watering as bulbs mature and necks soften. Stop irrigation 2 weeks before harvest.',
     },
     'Pepper': {
@@ -131,7 +123,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 6.8,
       'tempMin': 20, 'tempMax': 30,
       'humidityMin': 60, 'humidityMax': 80,
-      'bestTime': '06:30 AM', 'frequency': 'Every 2–3 Days',
       'tip': 'Peppers prefer deep, infrequent watering. Avoid wet foliage to prevent disease. Water stress at fruit set reduces yield.',
     },
     'Spinach': {
@@ -139,7 +130,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.5,
       'tempMin': 10, 'tempMax': 24,
       'humidityMin': 60, 'humidityMax': 70,
-      'bestTime': '05:30 AM', 'frequency': 'Every 2 Days',
       'tip': 'Spinach prefers cool, moist conditions. Mulch to keep soil cool and retain moisture. Bolts quickly in high heat.',
     },
     'Broccoli': {
@@ -147,7 +137,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 15, 'tempMax': 22,
       'humidityMin': 60, 'humidityMax': 75,
-      'bestTime': '06:00 AM', 'frequency': 'Every 3–5 Days',
       'tip': 'Broccoli needs consistent moisture for head development. Water stress causes premature flowering. Mulch to retain soil moisture and keep roots cool.',
     },
     'Other': {
@@ -155,7 +144,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       'phMin': 6.0, 'phMax': 7.0,
       'tempMin': 18, 'tempMax': 30,
       'humidityMin': 60, 'humidityMax': 80,
-      'bestTime': '06:00 AM', 'frequency': 'Every 2–3 Days',
       'tip': 'Maintain consistent soil moisture and check pH regularly. Irrigate early morning to reduce evaporation losses.',
     },
   };
@@ -1164,28 +1152,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildInfoCard(
-                icon: Icons.schedule_rounded,
-                iconColor: AppColors.warning,
-                label: 'Best Time',
-                value: _recommendations!['bestTime'] as String? ?? '—',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildInfoCard(
-                icon: Icons.repeat_rounded,
-                iconColor: AppColors.primary,
-                label: 'Frequency',
-                value: _recommendations!['frequency'] as String? ?? '—',
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -1275,61 +1241,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 ],
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ThemeColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ThemeColors.border(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: iconColor, size: 14),
-              ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: ThemeColors.textSecondary(context).withOpacity(0.55),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: ThemeColors.textPrimary(context),
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

@@ -372,6 +372,18 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                 _buildHeader(l10n),
                 const SizedBox(height: 20),
 
+                // First-time device setup banner
+                if (_selectedDeviceId != null &&
+                    !_isOnline &&
+                    _soil == 0 &&
+                    _ph == 0.0 &&
+                    _temp == 0 &&
+                    _humidity == 0 &&
+                    _waterLevel == 0) ...[
+                  _buildAwaitingFirstReadingBanner(l10n),
+                  const SizedBox(height: 16),
+                ],
+
                 // Overview Section
                 _buildOverviewHeader(l10n),
                 const SizedBox(height: 16),
@@ -782,6 +794,80 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
               fontWeight: FontWeight.w700,
               color: isOnline ? AppColors.primary : AppColors.error,
               letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// AWAITING FIRST READING BANNER
+  /// Shown when device just connected but no data yet
+  /// ------------------------------------------------
+  Widget _buildAwaitingFirstReadingBanner(AppLocalizations l10n) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Pulsing sensor icon
+          AnimatedBuilder(
+            animation: _pulseAnimation!,
+            builder: (_, __) => Opacity(
+              opacity: _pulseAnimation!.value,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.15),
+                ),
+                child: const Icon(
+                  Icons.sensors_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Device Connected!',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Waiting for first sensor reading. Make sure your device is powered on.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.75),
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

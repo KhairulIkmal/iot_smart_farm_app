@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme.dart';
 
@@ -27,8 +31,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   String _ticketStatus = 'open';
   String? _farmerName;
   bool _sending = false;
+  bool _uploadingImage = false;
   bool _inputEmpty = true;
   int _prevMessageCount = 0;
+
+  final ImagePicker _imagePicker = ImagePicker();
 
   static const _chatSuggestions = [
     'My device keeps going offline',
@@ -138,6 +145,165 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     } catch (_) {}
 
     if (mounted) setState(() => _sending = false);
+  }
+
+  void _showImageSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ThemeColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ThemeColors.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Send Image',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: ThemeColors.textPrimary(context),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _imageSourceOption(
+                      ctx: ctx,
+                      icon: Icons.camera_alt_rounded,
+                      label: 'Camera',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _sendImage(ImageSource.camera);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _imageSourceOption(
+                      ctx: ctx,
+                      icon: Icons.photo_library_rounded,
+                      label: 'Gallery',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _sendImage(ImageSource.gallery);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _imageSourceOption({
+    required BuildContext ctx,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.primary, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendImage(ImageSource source) async {
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 75,
+      maxWidth: 1280,
+    );
+    if (picked == null) return;
+
+    final user = _auth.currentUser!;
+    setState(() => _uploadingImage = true);
+
+    try {
+      // Upload to Firebase Storage
+      final ext = picked.path.split('.').last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('support_tickets')
+          .child(widget.ticketId)
+          .child(fileName);
+
+      final uploadTask = await ref.putFile(File(picked.path));
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+
+      // Save message to Firestore
+      await _firestore
+          .collection('support_tickets')
+          .doc(widget.ticketId)
+          .collection('messages')
+          .add({
+        'sender_uid': user.uid,
+        'sender_name': _farmerName ?? user.displayName ?? 'Farmer',
+        'sender_role': 'farmer',
+        'type': 'image',
+        'image_url': downloadUrl,
+        'text': '',
+        'sent_at': FieldValue.serverTimestamp(),
+      });
+
+      await _firestore
+          .collection('support_tickets')
+          .doc(widget.ticketId)
+          .update({
+        'updated_at': FieldValue.serverTimestamp(),
+        'unread_farmer': 0,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to send image. Please try again.')),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _uploadingImage = false);
   }
 
   Color _statusColor(String status) {
@@ -328,6 +494,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
                     final role       = data['sender_role'] as String? ?? 'farmer';
                     final text       = data['text']        as String? ?? '';
+                    final imageUrl   = data['image_url']   as String?;
                     final senderName = data['sender_name'] as String? ?? '';
                     final senderUid  = data['sender_uid']  as String? ?? '';
                     final sentAt     = data['sent_at']     as Timestamp?;
@@ -335,6 +502,17 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
                     final bool showAvatar = index == 0 ||
                         (docs[index - 1].data() as Map<String, dynamic>)['sender_role'] != role;
+
+                    if (imageUrl != null && imageUrl.isNotEmpty) {
+                      return _buildImageBubble(
+                        imageUrl: imageUrl,
+                        senderName: senderName,
+                        senderUid: senderUid,
+                        isFarmer: isFarmer,
+                        showAvatar: showAvatar,
+                        sentAt: sentAt,
+                      );
+                    }
 
                     return _buildBubble(
                       text: text,
@@ -387,6 +565,32 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               ),
               child: Row(
                 children: [
+                  // Attachment button
+                  GestureDetector(
+                    onTap: _uploadingImage ? null : _showImageSourceSheet,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: ThemeColors.bg(context),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: _uploadingImage
+                          ? SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                              ),
+                            )
+                          : Icon(
+                              Icons.attach_file_rounded,
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                              size: 22,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _inputController,
@@ -613,6 +817,173 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildImageBubble({
+    required String imageUrl,
+    required String senderName,
+    required String senderUid,
+    required bool isFarmer,
+    required bool showAvatar,
+    required Timestamp? sentAt,
+  }) {
+    const metaStyle = TextStyle(fontSize: 11, color: Colors.white38);
+    const nameStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white38);
+
+    final imageWidget = GestureDetector(
+      onTap: () => _openImageViewer(imageUrl),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          imageUrl,
+          width: 200,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              width: 200,
+              height: 160,
+              decoration: BoxDecoration(
+                color: ThemeColors.surface(context),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  strokeWidth: 2,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => Container(
+            width: 200,
+            height: 100,
+            decoration: BoxDecoration(
+              color: ThemeColors.surface(context),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(
+              child: Icon(Icons.broken_image_outlined, color: AppColors.primary),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (isFarmer) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (showAvatar)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4, right: 4),
+              child: Text(senderName, style: nameStyle),
+            ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 2),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.15),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(4),
+                ),
+              ),
+              child: imageWidget,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12, right: 4),
+            child: Text(_formatTime(sentAt), style: metaStyle),
+          ),
+        ],
+      );
+    }
+
+    // Admin side
+    final photoURL = _photoCache[senderUid];
+    final parts = senderName.trim().split(' ').where((w) => w.isNotEmpty).toList();
+    final ini = parts.isEmpty
+        ? '?'
+        : parts.map((w) => w[0]).join().substring(0, parts.length > 1 ? 2 : 1).toUpperCase();
+
+    final avatar = Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.primary.withOpacity(0.15),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: photoURL != null
+          ? Image.network(photoURL, fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
+              Center(child: Text(ini, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary))))
+          : Center(child: Text(ini, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary))),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          showAvatar ? avatar : const SizedBox(width: 32),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (showAvatar)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4, left: 2),
+                    child: Text(senderName, style: nameStyle),
+                  ),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A402D),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(4),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
+                    ),
+                    border: const Border(left: BorderSide(color: AppColors.primary, width: 3)),
+                  ),
+                  child: imageWidget,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, left: 2),
+                  child: Text(_formatTime(sentAt), style: metaStyle),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openImageViewer(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => GestureDetector(
+        onTap: () => Navigator.pop(ctx),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(imageUrl),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

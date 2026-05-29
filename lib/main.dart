@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme.dart';
 import 'core/app_localizations.dart';
@@ -12,6 +13,7 @@ import 'core/theme_notifier.dart';
 import 'auth/login_screen.dart';
 import 'features/navigation/main_navigation.dart';
 import 'features/crop_management/crop_list_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 import 'services/notifications/monitoring_manager.dart';
 import 'services/notifications/fcm_service.dart';
 
@@ -65,7 +67,7 @@ class IoTSmartFarmApp extends StatelessWidget {
         return AppLocalizationsProvider(
           languageCode: LanguageNotifier.instance.languageCode,
           child: MaterialApp(
-            title: 'IoT Smart Farm',
+            title: 'AgroEzuran',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
@@ -142,7 +144,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
 /// ------------------------------------------------------------
 /// POST LOGIN ROUTER
 /// Decides whether user goes to:
-/// - Crop Management (no crop)
+/// - Onboarding (first ever launch, no crops)
+/// - Crop Management / Get Started (no crop, seen onboarding)
 /// - Main Navigation (has crop)
 /// ------------------------------------------------------------
 class PostLoginRouter extends StatelessWidget {
@@ -152,28 +155,64 @@ class PostLoginRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser!;
 
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('crops')
-          .where('farmer_id', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get(),
+    return FutureBuilder<_PostLoginData>(
+      future: _resolveRoute(user.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SplashScreen();
         }
 
-        // No crop claimed yet
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const CropListScreen(showBackButton: false);
+        final data = snapshot.data;
+        final hasCrop = data?.hasCrop ?? false;
+        final onboardingSeen = data?.onboardingSeen ?? true;
+
+        // Has crop — go straight to main app
+        if (hasCrop) return const MainNavigation();
+
+        // First time ever — show onboarding first
+        if (!onboardingSeen) {
+          return OnboardingScreen(
+            onDone: () {
+              // After onboarding, replace with GetStartedScreen
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => const CropListScreen(showBackButton: false),
+                ),
+              );
+            },
+          );
         }
 
-        // Crop exists
-        return const MainNavigation();
+        // No crop, seen onboarding — go to setup screen
+        return const CropListScreen(showBackButton: false);
       },
     );
   }
+
+  Future<_PostLoginData> _resolveRoute(String uid) async {
+    // Kick off both in parallel
+    final cropFuture = FirebaseFirestore.instance
+        .collection('crops')
+        .where('farmer_id', isEqualTo: uid)
+        .where('status', isEqualTo: 'active')
+        .limit(1)
+        .get();
+    final prefsFuture = SharedPreferences.getInstance();
+
+    final cropSnap = await cropFuture;
+    final prefs = await prefsFuture;
+
+    return _PostLoginData(
+      hasCrop: cropSnap.docs.isNotEmpty,
+      onboardingSeen: prefs.getBool('onboarding_seen') ?? false,
+    );
+  }
+}
+
+class _PostLoginData {
+  final bool hasCrop;
+  final bool onboardingSeen;
+  const _PostLoginData({required this.hasCrop, required this.onboardingSeen});
 }
 
 /// ------------------------------------------------------------
@@ -212,7 +251,7 @@ class SplashScreen extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             Text(
-              AppLocalizations.of(context).t('IoT Smart Farm'),
+              AppLocalizations.of(context).t('AgroEzuran'),
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,

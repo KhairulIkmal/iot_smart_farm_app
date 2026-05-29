@@ -28,7 +28,7 @@ class AppLocalizations {
   // ---------------------------------------------------------------------------
   static const Map<String, String> _ms = {
     // ── App general ────────────────────────────────────────────────────────
-    'IoT Smart Farm': 'IoT Smart Farm',
+    'AgroEzuran': 'AgroEzuran',
     'Smart Farming Solutions': 'Penyelesaian Pertanian Pintar',
 
     // ── Splash / Auth wrapper ──────────────────────────────────────────────
@@ -85,6 +85,7 @@ class AppLocalizations {
     'Sensors': 'Penderia',
     'Control': 'Kawalan',
     'AI Assist': 'Bantuan AI',
+    'Assistant': 'Pembantu',
     'Settings': 'Tetapan',
 
     // ── Dashboard ──────────────────────────────────────────────────────────

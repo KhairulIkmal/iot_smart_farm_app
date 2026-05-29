@@ -306,12 +306,12 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         }, SetOptions(merge: true));
       });
 
-      // SUCCESS - Show message and pop
+      // SUCCESS - Show celebration overlay then navigate
       if (mounted) {
-        _showSuccessSnackBar('Device assigned successfully!');
-
-        // Navigate back - return true so CropListScreen routes to MainNavigation
-        Navigator.pop(context, true);
+        await _showSuccessCelebration();
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
       }
     } on FirebaseException catch (e) {
       _showErrorSnackBar('Firebase error: ${e.message}');
@@ -439,6 +439,21 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  /// ------------------------------------------------
+  /// SUCCESS CELEBRATION OVERLAY
+  /// ------------------------------------------------
+  Future<void> _showSuccessCelebration() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (ctx) => _SuccessCelebrationDialog(
+        cropType: _selectedCropType ?? 'Crop',
+        deviceCode: _uniqueCode ?? 'Device',
+      ),
     );
   }
 
@@ -969,6 +984,157 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
         backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------
+// SUCCESS CELEBRATION DIALOG
+// Shown after device successfully claimed.
+// Auto-dismisses after 2.5 s.
+// ---------------------------------------------------------------
+class _SuccessCelebrationDialog extends StatefulWidget {
+  final String cropType;
+  final String deviceCode;
+
+  const _SuccessCelebrationDialog({
+    required this.cropType,
+    required this.deviceCode,
+  });
+
+  @override
+  State<_SuccessCelebrationDialog> createState() => _SuccessCelebrationDialogState();
+}
+
+class _SuccessCelebrationDialogState extends State<_SuccessCelebrationDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _scaleAnim = CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut);
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+    _ctrl.forward();
+
+    // Auto-dismiss after 2.5 s
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Center(
+        child: ScaleTransition(
+          scale: _scaleAnim,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: ThemeColors.surface(context),
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.3),
+                  blurRadius: 40,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Animated checkmark circle
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary.withOpacity(0.1),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.primary.withOpacity(0.15),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.primary,
+                        size: 48,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                Text(
+                  'Device Connected!',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: ThemeColors.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${widget.cropType} plot is now linked to\n${widget.deviceCode}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.65),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.sensors_rounded, color: AppColors.primary, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Launching your dashboard...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: ThemeColors.textPrimary(context),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

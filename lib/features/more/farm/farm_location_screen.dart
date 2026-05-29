@@ -18,7 +18,12 @@ import '../../../services/user_counter_service.dart';
 /// Uses OpenStreetMap (flutter_map) for interactive pin selection
 /// ------------------------------------------------------------
 class FarmLocationScreen extends StatefulWidget {
-  const FarmLocationScreen({super.key});
+  /// When [isSetupMode] is true, the screen is shown as part of new-user
+  /// onboarding — it shows a "Skip for now" option and returns `true`/`false`
+  /// via Navigator.pop when the user confirms or skips.
+  final bool isSetupMode;
+
+  const FarmLocationScreen({super.key, this.isSetupMode = false});
 
   @override
   State<FarmLocationScreen> createState() => _FarmLocationScreenState();
@@ -220,7 +225,7 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
           });
       _showSuccessSnackBar('Farm location saved successfully');
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, widget.isSetupMode ? true : null);
     } catch (e) {
       _showErrorSnackBar('Failed to save location');
     } finally {
@@ -290,11 +295,11 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Column(
             children: [
-              // Back button + title
+              // Back button + title + optional skip
               Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () => Navigator.pop(context, widget.isSetupMode ? false : null),
                     child: Container(
                       width: 40,
                       height: 40,
@@ -308,16 +313,60 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      l10n.t('Setup Location'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (widget.isSetupMode)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF69F0AE).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFF69F0AE).withOpacity(0.4)),
+                            ),
+                            child: const Text(
+                              'Step 3 of 4',
+                              style: TextStyle(
+                                color: Color(0xFF69F0AE),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        Text(
+                          widget.isSetupMode ? 'Set Farm Location' : l10n.t('Setup Location'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  if (widget.isSetupMode)
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context, false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        child: Text(
+                          'Skip',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -469,6 +518,35 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                     ),
                 ],
               ),
+
+              // Setup-mode importance banner
+              if (widget.isSetupMode) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF69F0AE).withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_on_rounded, color: Color(0xFF69F0AE), size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Pin your farm on the map — this helps with weather data and monitoring accuracy.',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -818,7 +896,9 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                                   const Icon(Icons.check_circle_rounded, size: 20),
                                   const SizedBox(width: 8),
                                   Text(
-                                    l10n.t('Confirm Location'),
+                                    widget.isSetupMode
+                                        ? 'Set My Farm Location'
+                                        : l10n.t('Confirm Location'),
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
@@ -829,6 +909,23 @@ class _FarmLocationScreenState extends State<FarmLocationScreen> {
                               ),
                       ),
                     ),
+                    if (widget.isSetupMode) ...[
+                      const SizedBox(height: 12),
+                      Center(
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context, false),
+                          child: Text(
+                            'Set up later',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: ThemeColors.textSecondary(context).withOpacity(0.5),
+                              decoration: TextDecoration.underline,
+                              decorationColor: ThemeColors.textSecondary(context).withOpacity(0.3),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                   ],
                 ),

@@ -20,7 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _authService = AuthService();
 
   bool _isLoading = false;
-  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
 
   @override
@@ -30,109 +29,54 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// -------------------------------
-  /// EMAIL SIGN IN
-  /// -------------------------------
-  Future<void> _signInWithEmail() async {
+  Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-
     try {
       final result = await _authService.signInWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-
       if (!mounted) return;
-
       if (!result['success']) {
-        _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+        _showError(result['error'] ?? AppStrings.somethingWentWrong);
       } else {
-        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (_) {
-      _showErrorSnackBar(AppStrings.somethingWentWrong);
+      _showError(AppStrings.somethingWentWrong);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  /// -------------------------------
-  /// GOOGLE SIGN IN
-  /// -------------------------------
-  Future<void> _signInWithGoogle() async {
-    setState(() => _isGoogleLoading = true);
-
-    try {
-      final result = await _authService.signInWithGoogle();
-
-      if (!mounted) return;
-
-      if (!result['success']) {
-        _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
-      } else {
-        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
-      }
-    } catch (_) {
-      _showErrorSnackBar(AppStrings.somethingWentWrong);
-    } finally {
-      if (mounted) setState(() => _isGoogleLoading = false);
-    }
-  }
-
-  /// -------------------------------
-  /// FORGOT PASSWORD
-  /// -------------------------------
   Future<void> _forgotPassword() async {
     final email = _emailController.text.trim();
-
     if (email.isEmpty) {
-      final l10n = AppLocalizations.of(context);
-      _showErrorSnackBar(l10n.t('Please enter your email address first'));
+      _showError('Enter your email address first');
       return;
     }
-
     try {
       final result = await _authService.sendPasswordResetEmail(email);
-
       if (!mounted) return;
-
       if (result['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(AppStrings.passwordResetEmailSent),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       } else {
-        _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+        _showError(result['error'] ?? AppStrings.somethingWentWrong);
       }
     } catch (_) {
-      _showErrorSnackBar(AppStrings.somethingWentWrong);
+      _showError(AppStrings.somethingWentWrong);
     }
   }
 
-  /// -------------------------------
-  /// NAVIGATION
-  /// -------------------------------
-  void _navigateToRegister() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const RegisterScreen()));
-  }
-
-  void _showErrorSnackBar(String message) {
+  void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -145,104 +89,154 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: ThemeColors.bg(context),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const SizedBox(height: 60),
-              _buildLogo(),
-              const SizedBox(height: 32),
-              _buildWelcomeText(),
-              const SizedBox(height: 48),
-              _buildLoginForm(),
-              const SizedBox(height: 16),
-              _buildForgotPassword(),
-              const SizedBox(height: 24),
-              _buildSignInButton(),
-              const SizedBox(height: 32),
-              _buildDivider(),
-              const SizedBox(height: 32),
-              _buildGoogleSignIn(),
-              const SizedBox(height: 48),
-              _buildCreateAccountLink(),
-              const SizedBox(height: 24),
-            ],
+      body: Column(
+        children: [
+          _buildHero(l10n),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fieldLabel(l10n.t('Email address')),
+                    const SizedBox(height: 8),
+                    _emailField(l10n),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _fieldLabel(l10n.t('Password')),
+                        TextButton(
+                          onPressed: _forgotPassword,
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            l10n.t('Forgot password?'),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _passwordField(l10n),
+                    const SizedBox(height: 28),
+                    _signInButton(l10n),
+                    const SizedBox(height: 32),
+                    _createAccountLink(l10n),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  /// -------------------------------
-  /// UI COMPONENTS (UNCHANGED)
-  /// -------------------------------
-  Widget _buildLogo() {
+  // ─────────────────────────────────────────────
+  // HERO BAND
+  // ─────────────────────────────────────────────
+  Widget _buildHero(AppLocalizations l10n) {
     return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Icon(
-        Icons.agriculture,
-        size: 48,
-        color: AppColors.backgroundDark,
-      ),
-    );
-  }
-
-  Widget _buildWelcomeText() {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        Text(
-          l10n.t('Welcome Back'),
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: ThemeColors.textPrimary(context),
-          ),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(28, 64, 28, 36),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
         ),
-        const SizedBox(height: 8),
-        Text(
-          l10n.t('Monitor your crops and control irrigation from\nanywhere.'),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            color: ThemeColors.textSecondary(context).withOpacity(0.7),
-            height: 1.5,
-          ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
         ),
-      ],
-    );
-  }
-
-  Widget _buildLoginForm() {
-    return Form(
-      key: _formKey,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [_emailField(), const SizedBox(height: 20), _passwordField()],
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.eco_rounded, color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'AgroEzuran',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          Text(
+            l10n.t('Welcome Back'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 30,
+              fontWeight: FontWeight.bold,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.t('Sign in to continue monitoring\nyour farm.'),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.72),
+              fontSize: 14,
+              height: 1.55,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _emailField() {
-    final l10n = AppLocalizations.of(context);
+  // ─────────────────────────────────────────────
+  // FIELD COMPONENTS
+  // ─────────────────────────────────────────────
+  Widget _fieldLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: ThemeColors.textPrimary(context),
+      ),
+    );
+  }
+
+  Widget _emailField(AppLocalizations l10n) {
     return TextFormField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      style: TextStyle(color: ThemeColors.textPrimary(context)),
-      decoration: _inputDecoration(l10n.t('Email address'), l10n.t('farmer@example.com')),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return l10n.t(AppStrings.fieldRequired);
-        }
-        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+      style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 15),
+      decoration: _dec(hint: 'farmer@example.com', icon: Icons.alternate_email_rounded),
+      validator: (v) {
+        if (v == null || v.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
           return l10n.t(AppStrings.invalidEmail);
         }
         return null;
@@ -250,159 +244,106 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _passwordField() {
-    final l10n = AppLocalizations.of(context);
+  Widget _passwordField(AppLocalizations l10n) {
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: TextStyle(color: ThemeColors.textPrimary(context)),
-      decoration: _inputDecoration(
-        l10n.t('Password'),
-        '••••••••',
+      style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 15),
+      decoration: _dec(
+        hint: '••••••••',
+        icon: Icons.lock_outline_rounded,
         suffix: IconButton(
           icon: Icon(
-            _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary(context).withOpacity(0.5),
+            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: ThemeColors.textSecondary(context).withOpacity(0.45),
+            size: 20,
           ),
-          onPressed: () {
-            setState(() {
-              _obscurePassword = !_obscurePassword;
-            });
-          },
+          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return l10n.t(AppStrings.fieldRequired);
-        }
-        if (value.length < 6) {
-          return l10n.t(AppStrings.invalidPassword);
-        }
+      validator: (v) {
+        if (v == null || v.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (v.length < 6) return l10n.t(AppStrings.invalidPassword);
         return null;
       },
     );
   }
 
-  InputDecoration _inputDecoration(
-    String label,
-    String hint, {
-    Widget? suffix,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3)),
-      filled: true,
-      fillColor: ThemeColors.surface(context),
-      suffixIcon: suffix,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: ThemeColors.border(context)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: ThemeColors.border(context)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.error),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-    );
-  }
-
-  Widget _buildForgotPassword() {
-    final l10n = AppLocalizations.of(context);
-    return Align(
-      alignment: Alignment.centerRight,
-      child: TextButton(
-        onPressed: _forgotPassword,
-        child: Text(
-          l10n.t('Forgot password?'),
-          style: const TextStyle(
-            fontSize: 14,
-            color: AppColors.primary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSignInButton() {
+  Widget _signInButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 54,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _signInWithEmail,
+        onPressed: _isLoading ? null : _signIn,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.backgroundDark,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: _isLoading
             ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
               )
-            : Text(AppLocalizations.of(context).t('Sign in')),
+            : Text(
+                l10n.t('Sign in'),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
       ),
     );
   }
 
-  Widget _buildDivider() {
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            l10n.t('Or continue with'),
-            style: TextStyle(color: ThemeColors.textSecondary(context)),
-          ),
-        ),
-        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
-      ],
-    );
-  }
-
-  Widget _buildGoogleSignIn() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: _isGoogleLoading ? null : _signInWithGoogle,
-        child: _isGoogleLoading
-            ? const CircularProgressIndicator()
-            : Text(AppLocalizations.of(context).t('Sign in with Google')),
-      ),
-    );
-  }
-
-  Widget _buildCreateAccountLink() {
-    final l10n = AppLocalizations.of(context);
+  Widget _createAccountLink(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           l10n.t("Don't have an account? "),
-          style: TextStyle(color: ThemeColors.textSecondary(context)),
+          style: TextStyle(
+            fontSize: 14,
+            color: ThemeColors.textSecondary(context).withOpacity(0.65),
+          ),
         ),
         GestureDetector(
-          onTap: _navigateToRegister,
-          child: Text(
-            l10n.t('Create an account'),
-            style: const TextStyle(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+          ),
+          child: const Text(
+            'Create account',
+            style: TextStyle(
+              fontSize: 14,
               fontWeight: FontWeight.w600,
               color: AppColors.primary,
             ),
           ),
         ),
       ],
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // SHARED DECORATION
+  // ─────────────────────────────────────────────
+  InputDecoration _dec({required String hint, required IconData icon, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3), fontSize: 14),
+      prefixIcon: Icon(icon, color: AppColors.primary.withOpacity(0.6), size: 20),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: ThemeColors.surface(context),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeColors.border(context))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeColors.border(context))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 2)),
     );
   }
 }

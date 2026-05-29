@@ -22,7 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _authService = AuthService();
 
   bool _isLoading = false;
-  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptedTerms = false;
@@ -36,76 +35,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  /// ------------------------------------------------
-  /// EMAIL REGISTRATION
-  /// ------------------------------------------------
-  Future<void> _registerWithEmail() async {
+  Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
-
     if (!_acceptedTerms) {
-      final l10n = AppLocalizations.of(context);
-      _showErrorSnackBar(l10n.t('Please accept the Terms & Conditions'));
+      _showError('Please accept the Terms & Conditions');
       return;
     }
-
     setState(() => _isLoading = true);
-
     try {
       final result = await _authService.registerWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),
       );
-
       if (!mounted) return;
-
       if (!result['success']) {
-        _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
+        _showError(result['error'] ?? AppStrings.somethingWentWrong);
       } else {
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (_) {
-      _showErrorSnackBar(AppStrings.somethingWentWrong);
+      _showError(AppStrings.somethingWentWrong);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  /// ------------------------------------------------
-  /// GOOGLE SIGN UP
-  /// ------------------------------------------------
-  Future<void> _signUpWithGoogle() async {
-    setState(() => _isGoogleLoading = true);
-
-    try {
-      final result = await _authService.signInWithGoogle();
-
-      if (!mounted) return;
-
-      if (!result['success']) {
-        _showErrorSnackBar(result['error'] ?? AppStrings.somethingWentWrong);
-      } else {
-        // ✅ SUCCESS → Pop all routes and let AuthWrapper handle navigation
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
-      }
-    } catch (_) {
-      _showErrorSnackBar(AppStrings.somethingWentWrong);
-    } finally {
-      if (mounted) setState(() => _isGoogleLoading = false);
-    }
-  }
-
-  void _navigateToLogin() {
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-  }
-
-  void _showErrorSnackBar(String message) {
+  void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -118,327 +74,377 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: ThemeColors.bg(context),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-                _buildLogo(),
-                const SizedBox(height: 24),
-                _buildWelcomeText(),
-                const SizedBox(height: 36),
-                _buildRegisterForm(),
-                const SizedBox(height: 16),
-                _buildTermsCheckbox(),
-                const SizedBox(height: 24),
-                _buildSignUpButton(),
-                const SizedBox(height: 28),
-                _buildDivider(),
-                const SizedBox(height: 28),
-                _buildGoogleSignUp(),
-                const SizedBox(height: 36),
-                _buildLoginLink(),
-                const SizedBox(height: 24),
-              ],
+      body: Column(
+        children: [
+          _buildHero(l10n),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fieldLabel(l10n.t('Full Name')),
+                    const SizedBox(height: 8),
+                    _nameField(l10n),
+                    const SizedBox(height: 18),
+                    _fieldLabel(l10n.t('Email address')),
+                    const SizedBox(height: 8),
+                    _emailField(l10n),
+                    const SizedBox(height: 18),
+                    _fieldLabel(l10n.t('Password')),
+                    const SizedBox(height: 8),
+                    _passwordField(l10n),
+                    const SizedBox(height: 18),
+                    _fieldLabel(l10n.t('Confirm Password')),
+                    const SizedBox(height: 8),
+                    _confirmPasswordField(l10n),
+                    const SizedBox(height: 20),
+                    _termsRow(l10n),
+                    const SizedBox(height: 24),
+                    _createAccountButton(l10n),
+                    const SizedBox(height: 28),
+                    _loginLink(l10n),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  /// ---------------- UI COMPONENTS (UNCHANGED) ----------------
-
-  Widget _buildLogo() {
-    return Container(
-      width: 72,
-      height: 72,
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: const Icon(
-        Icons.agriculture,
-        size: 40,
-        color: AppColors.backgroundDark,
-      ),
-    );
-  }
-
-  Widget _buildWelcomeText() {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        Text(
-          l10n.t('Create Account'),
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: ThemeColors.textPrimary(context),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          l10n.t('Start monitoring your farm with smart\nIoT solutions today.'),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            color: ThemeColors.textSecondary(context).withOpacity(0.7),
-            height: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRegisterForm() {
-    final l10n = AppLocalizations.of(context);
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _label(l10n.t('Full Name')),
-          _nameField(),
-          const SizedBox(height: 18),
-          _label(l10n.t('Email address')),
-          _emailField(),
-          const SizedBox(height: 18),
-          _label(l10n.t('Password')),
-          _passwordField(),
-          const SizedBox(height: 18),
-          _label(l10n.t('Confirm Password')),
-          _confirmPasswordField(),
         ],
       ),
     );
   }
 
-  Widget _label(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: ThemeColors.textPrimary(context),
+  // ─────────────────────────────────────────────
+  // HERO BAND
+  // ─────────────────────────────────────────────
+  Widget _buildHero(AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(28, 60, 28, 30),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
         ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Back button + logo row
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'AgroEzuran',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            l10n.t('Create Account'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.t('Start monitoring your farm with smart IoT solutions today.'),
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.72),
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _nameField() {
-    final l10n = AppLocalizations.of(context);
+  // ─────────────────────────────────────────────
+  // FIELD COMPONENTS
+  // ─────────────────────────────────────────────
+  Widget _fieldLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: ThemeColors.textPrimary(context),
+      ),
+    );
+  }
+
+  Widget _nameField(AppLocalizations l10n) {
     return TextFormField(
       controller: _nameController,
-      style: TextStyle(color: ThemeColors.textPrimary(context)),
-      decoration: _inputDecoration(
-        l10n.t('Enter your full name'),
-        Icons.person_outline,
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
-        if (value.length < 2) return l10n.t('Name must be at least 2 characters');
+      textCapitalization: TextCapitalization.words,
+      style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 15),
+      decoration: _dec(hint: 'e.g. Ahmad Rizal', icon: Icons.person_outline_rounded),
+      validator: (v) {
+        if (v == null || v.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (v.trim().length < 2) return l10n.t('Name must be at least 2 characters');
         return null;
       },
     );
   }
 
-  Widget _emailField() {
-    final l10n = AppLocalizations.of(context);
+  Widget _emailField(AppLocalizations l10n) {
     return TextFormField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
-      style: TextStyle(color: ThemeColors.textPrimary(context)),
-      decoration: _inputDecoration(l10n.t('farmer@example.com'), Icons.email_outlined),
-      validator: (value) {
-        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
-        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-          return l10n.t(AppStrings.invalidEmail);
-        }
-        return null;
-      },
+      style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 15),
+      decoration: _dec(hint: 'farmer@example.com', icon: Icons.alternate_email_rounded),
+      validator: (v) => _validateEmail(v, l10n),
     );
   }
 
-  Widget _passwordField() {
-    final l10n = AppLocalizations.of(context);
+  String? _validateEmail(String? v, AppLocalizations l10n) {
+    if (v == null || v.isEmpty) return l10n.t(AppStrings.fieldRequired);
+
+    final email = v.trim().toLowerCase();
+
+    // Basic format check
+    if (!RegExp(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+        .hasMatch(email)) {
+      return 'Enter a valid email address';
+    }
+
+    // Must have at least 2 chars before @
+    final localPart = email.split('@').first;
+    if (localPart.length < 2) return 'Enter a valid email address';
+
+    // Block disposable / dummy email domains
+    final domain = email.split('@').last;
+    if (_isDisposableDomain(domain)) {
+      return 'Disposable or temporary emails are not allowed';
+    }
+
+    return null;
+  }
+
+  bool _isDisposableDomain(String domain) {
+    const blocked = {
+      // Mailinator family
+      'mailinator.com', 'trashmail.com', 'trashmail.at', 'trashmail.io',
+      'trashmail.me', 'trashmail.net', 'trashmail.org',
+      // Guerrilla Mail
+      'guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org',
+      'guerrillamail.de', 'guerrillamail.biz', 'guerrillamail.info',
+      'guerrillamailblock.com', 'grr.la', 'sharklasers.com',
+      'spam4.me', 'spamgourmet.com',
+      // 10 Minute Mail
+      '10minutemail.com', '10minutemail.net', '10minemail.com',
+      // Yop Mail
+      'yopmail.com', 'yopmail.fr', 'cool.fr.nf', 'jetable.fr.nf',
+      // Temp Mail & family
+      'temp-mail.org', 'tempmail.com', 'tempmail.net', 'tempmail.de',
+      'tempr.email', 'discard.email', 'dispostable.com',
+      // Throwaway
+      'throwaway.email', 'throwam.com',
+      // Fake Inbox
+      'fakeinbox.com', 'fakeinbox.net', 'mailnull.com',
+      // Maildrop
+      'maildrop.cc',
+      // Others
+      'getnada.com', 'filzmail.com', 'zetmail.com', 'wegwerfmail.de',
+      'spamfree24.org', 'spamfree.eu', 'spamoff.de', 'objectmail.com',
+      'spam.la', 'binkmail.com', 'safetymail.info', 'mailexpire.com',
+      'spamherelots.com', 'spamhereplease.com', 'spamthisplease.com',
+      'spamtrail.com', 'spamtraps.nl',
+      // Common test/dummy patterns
+      'example.com', 'example.net', 'example.org',
+      'test.com', 'testing.com',
+    };
+    return blocked.contains(domain);
+  }
+
+  Widget _passwordField(AppLocalizations l10n) {
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
-      style: TextStyle(color: ThemeColors.textPrimary(context)),
-      decoration: _inputDecoration(
-        l10n.t('Create a strong password'),
-        Icons.lock_outline,
+      style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 15),
+      decoration: _dec(
+        hint: 'Min. 6 characters',
+        icon: Icons.lock_outline_rounded,
         suffix: IconButton(
           icon: Icon(
-            _obscurePassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary(context).withOpacity(0.5),
+            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: ThemeColors.textSecondary(context).withOpacity(0.45),
+            size: 20,
           ),
-          onPressed: () {
-            setState(() => _obscurePassword = !_obscurePassword);
-          },
+          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
-        if (value.length < 6) return l10n.t(AppStrings.invalidPassword);
+      validator: (v) {
+        if (v == null || v.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (v.length < 6) return l10n.t(AppStrings.invalidPassword);
         return null;
       },
     );
   }
 
-  Widget _confirmPasswordField() {
-    final l10n = AppLocalizations.of(context);
+  Widget _confirmPasswordField(AppLocalizations l10n) {
     return TextFormField(
       controller: _confirmPasswordController,
       obscureText: _obscureConfirmPassword,
-      style: TextStyle(color: ThemeColors.textPrimary(context)),
-      decoration: _inputDecoration(
-        l10n.t('Re-enter your password'),
-        Icons.lock_outline,
+      style: TextStyle(color: ThemeColors.textPrimary(context), fontSize: 15),
+      decoration: _dec(
+        hint: 'Re-enter your password',
+        icon: Icons.lock_outline_rounded,
         suffix: IconButton(
           icon: Icon(
-            _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-            color: ThemeColors.textSecondary(context).withOpacity(0.5),
+            _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            color: ThemeColors.textSecondary(context).withOpacity(0.45),
+            size: 20,
           ),
-          onPressed: () {
-            setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-          },
+          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
         ),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) return l10n.t(AppStrings.fieldRequired);
-        if (value != _passwordController.text) {
-          return l10n.t(AppStrings.passwordsDoNotMatch);
-        }
+      validator: (v) {
+        if (v == null || v.isEmpty) return l10n.t(AppStrings.fieldRequired);
+        if (v != _passwordController.text) return l10n.t(AppStrings.passwordsDoNotMatch);
         return null;
       },
     );
   }
 
-  InputDecoration _inputDecoration(
-    String hint,
-    IconData icon, {
-    Widget? suffix,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3)),
-      prefixIcon: Icon(icon, color: ThemeColors.textSecondary(context).withOpacity(0.5)),
-      suffixIcon: suffix,
-      filled: true,
-      fillColor: ThemeColors.surface(context),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: ThemeColors.border(context)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: ThemeColors.border(context)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.error),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-    );
-  }
-
-  Widget _buildTermsCheckbox() {
-    final l10n = AppLocalizations.of(context);
+  Widget _termsRow(AppLocalizations l10n) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Checkbox(
-          value: _acceptedTerms,
-          onChanged: (value) {
-            setState(() => _acceptedTerms = value ?? false);
-          },
-          activeColor: AppColors.primary,
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            value: _acceptedTerms,
+            onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
+            activeColor: AppColors.primary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            side: BorderSide(color: ThemeColors.border(context), width: 1.5),
+          ),
         ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             l10n.t('I agree to the Terms & Conditions and Privacy Policy'),
-            style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.7)),
+            style: TextStyle(
+              fontSize: 13,
+              color: ThemeColors.textSecondary(context).withOpacity(0.7),
+              height: 1.4,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSignUpButton() {
+  Widget _createAccountButton(AppLocalizations l10n) {
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 54,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _registerWithEmail,
+        onPressed: _isLoading ? null : _register,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.backgroundDark,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: _isLoading
-            ? const CircularProgressIndicator()
-            : Text(AppLocalizations.of(context).t('Create Account')),
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                l10n.t('Create Account'),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
       ),
     );
   }
 
-  Widget _buildDivider() {
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            l10n.t('Or sign up with'),
-            style: TextStyle(color: ThemeColors.textSecondary(context)),
-          ),
-        ),
-        Expanded(child: Container(height: 1, color: ThemeColors.border(context))),
-      ],
-    );
-  }
-
-  Widget _buildGoogleSignUp() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: _isGoogleLoading ? null : _signUpWithGoogle,
-        child: _isGoogleLoading
-            ? const CircularProgressIndicator()
-            : Text(AppLocalizations.of(context).t('Sign up with Google')),
-      ),
-    );
-  }
-
-  Widget _buildLoginLink() {
-    final l10n = AppLocalizations.of(context);
+  Widget _loginLink(AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           l10n.t('Already have an account? '),
-          style: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.7)),
+          style: TextStyle(
+            fontSize: 14,
+            color: ThemeColors.textSecondary(context).withOpacity(0.65),
+          ),
         ),
         GestureDetector(
-          onTap: _navigateToLogin,
-          child: Text(
-            l10n.t('Sign in'),
-            style: const TextStyle(color: AppColors.primary),
+          onTap: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          ),
+          child: const Text(
+            'Sign in',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // SHARED DECORATION
+  // ─────────────────────────────────────────────
+  InputDecoration _dec({required String hint, required IconData icon, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: ThemeColors.textSecondary(context).withOpacity(0.3), fontSize: 14),
+      prefixIcon: Icon(icon, color: AppColors.primary.withOpacity(0.6), size: 20),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: ThemeColors.surface(context),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeColors.border(context))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: ThemeColors.border(context))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 2)),
     );
   }
 }

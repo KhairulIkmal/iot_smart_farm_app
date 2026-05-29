@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// App-wide string constants
 class AppStrings {
   // App Info
-  static const String appName = 'IoT Smart Farm';
+  static const String appName = 'AgroEzuran';
   static const String appTagline = 'Smart Farming Solutions';
   static const String appVersion = '1.0.0';
 

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/theme.dart';
 import '../services/data_migration_service.dart';
@@ -19,7 +18,6 @@ import '../features/crop_management/crop_list_screen.dart';
 /// ------------------------------------------------------------
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Sign in with email and password
@@ -40,7 +38,7 @@ class AuthService {
     }
   }
 
-  /// Register with email and password
+  /// Register with email and password, then send verification email
   Future<Map<String, dynamic>> registerWithEmail({
     required String email,
     required String password,
@@ -79,55 +77,6 @@ class AuthService {
     }
   }
 
-  /// Sign in with Google
-  Future<Map<String, dynamic>> signInWithGoogle() async {
-    try {
-      // Trigger Google Sign In flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
-      if (googleUser == null) {
-        return {'success': false, 'error': 'Sign in cancelled'};
-      }
-
-      // Obtain auth details
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      // Create credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Sign in to Firebase
-      final userCredential = await _auth.signInWithCredential(credential);
-
-      // Check if user with this Auth UID exists (use UserCounterService)
-      final userCounterService = UserCounterService();
-      final existingUser = await userCounterService.getUserByAuthUid(userCredential.user!.uid);
-
-      if (existingUser == null) {
-        // New user - create with custom ID
-        final customUserId = await userCounterService.getNextUserId();
-        await _firestore.collection('users').doc(customUserId).set({
-          'uid': userCredential.user!.uid,
-          'name': userCredential.user!.displayName ?? '',
-          'email': userCredential.user!.email ?? '',
-          'photoURL': userCredential.user!.photoURL,
-          'created_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-        });
-      }
-
-      return {'success': true};
-    } catch (e) {
-      return {
-        'success': false,
-        'error': 'Failed to sign in with Google. Please try again.',
-      };
-    }
-  }
-
   /// Send password reset email
   Future<Map<String, dynamic>> sendPasswordResetEmail(String email) async {
     try {
@@ -145,9 +94,8 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
-    // Clear selected crop data before signing out
     SelectedCropService().clearSelectedCrop();
-    await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
+    await _auth.signOut();
   }
 
   /// Get current user
@@ -211,7 +159,7 @@ class IoTSmartFarmApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'IoT Smart Farm',
+      title: 'AgroEzuran',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -407,7 +355,7 @@ class SplashScreen extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             const Text(
-              'IoT Smart Farm',
+              'AgroEzuran',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,

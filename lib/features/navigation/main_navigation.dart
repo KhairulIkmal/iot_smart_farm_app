@@ -97,7 +97,7 @@ class _MainNavigationState extends State<MainNavigation> {
                       index: 3,
                       icon: Icons.smart_toy_outlined,
                       activeIcon: Icons.smart_toy,
-                      label: l10n.t('AI Assist'),
+                      label: l10n.t('Assistant'),
                     ),
                     _buildNavItem(
                       index: 4,

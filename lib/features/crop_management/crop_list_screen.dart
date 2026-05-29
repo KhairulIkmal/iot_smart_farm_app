@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -6,15 +7,17 @@ import '../../core/app_localizations.dart';
 import '../../core/theme.dart';
 import '../../auth/auth_service.dart';
 import '../navigation/main_navigation.dart';
+import '../more/farm/farm_location_screen.dart';
+import '../more/profile/profile_setup_screen.dart';
 import 'claim_device_screen.dart';
 import 'crop_detail_screen.dart';
 
 /// ------------------------------------------------------------
 /// CROP LIST SCREEN (CROP MANAGEMENT)
-/// Shows:
-/// - Stats (Active Plots, Connected Devices)
-/// - Connect New Device card (enter AGR-XXXX-XXXX code)
-/// - My Crops (user's claimed crops)
+///
+/// Two modes:
+///  - showBackButton: false → new-user "Get Started" experience
+///  - showBackButton: true  → returning user crop management
 /// ------------------------------------------------------------
 class CropListScreen extends StatefulWidget {
   final bool showBackButton;
@@ -28,13 +31,41 @@ class CropListScreen extends StatefulWidget {
   State<CropListScreen> createState() => _CropListScreenState();
 }
 
-class _CropListScreenState extends State<CropListScreen> {
+class _CropListScreenState extends State<CropListScreen> with SingleTickerProviderStateMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final AuthService _authService = AuthService();
 
   // Cache: Firestore doc ID → AGR-XXXX-XXXX code
   final Map<String, String> _deviceCodeCache = {};
+
+  // For the "Get Started" inline code entry
+  final TextEditingController _codeController = TextEditingController();
+  String? _codeError;
+  bool _codeLoading = false;
+
+  // For pulsing the CTA arrow in new-user mode
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _prefetchDeviceCodes(List<String> deviceIds) async {
     final missing = deviceIds.where((id) => id.isNotEmpty && !_deviceCodeCache.containsKey(id)).toList();
@@ -53,6 +84,13 @@ class _CropListScreenState extends State<CropListScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+
+    // New-user mode: completely different layout
+    if (!widget.showBackButton) {
+      return _buildGetStartedLayout(l10n);
+    }
+
+    // Returning user: crop management layout
     return Scaffold(
       backgroundColor: ThemeColors.bg(context),
       body: SafeArea(
@@ -74,6 +112,584 @@ class _CropListScreenState extends State<CropListScreen> {
         ),
       ),
     );
+  }
+
+  // ============================================================
+  // NEW USER "GET STARTED" LAYOUT
+  // ============================================================
+  Widget _buildGetStartedLayout(AppLocalizations l10n) {
+    final user = _auth.currentUser;
+    final firstName = _getFirstName(user?.displayName ?? user?.email ?? 'Farmer');
+
+    return Scaffold(
+      backgroundColor: ThemeColors.bg(context),
+      body: Column(
+        children: [
+          // Green hero banner
+          _buildHeroBanner(firstName),
+
+          // Scrollable setup content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  _buildStepsList(),
+                  const SizedBox(height: 28),
+                  _buildInlineCodeEntry(l10n),
+                  const SizedBox(height: 20),
+                  _buildHelpCard(),
+                  const SizedBox(height: 20),
+                  _buildLogoutRow(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroBanner(String firstName) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 32),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(32),
+          bottomRight: Radius.circular(32),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Welcome greeting
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.waving_hand_rounded, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome, $firstName!',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    "Let's set up your first farm",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Progress indicator: 4 simple steps
+          Row(
+            children: [
+              _buildProgressStep('1', 'Register', true, true),
+              _buildProgressConnector(false),
+              _buildProgressStep('2', 'Connect Device', false, false),
+              _buildProgressConnector(false),
+              _buildProgressStep('3', 'Set Up Farm', false, false),
+              _buildProgressConnector(false),
+              _buildProgressStep('4', 'Start Farming', false, false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressStep(String num, String label, bool done, bool active) {
+    final color = done ? const Color(0xFF69F0AE) : Colors.white.withOpacity(0.4);
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: done ? const Color(0xFF69F0AE).withOpacity(0.2) : Colors.white.withOpacity(0.1),
+              border: Border.all(color: color, width: 1.5),
+            ),
+            child: Center(
+              child: done
+                  ? const Icon(Icons.check, color: Color(0xFF69F0AE), size: 14)
+                  : Text(num, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10,
+              color: done ? const Color(0xFF69F0AE) : Colors.white.withOpacity(0.5),
+              fontWeight: done ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressConnector(bool done) {
+    return Container(
+      width: 20,
+      height: 1.5,
+      margin: const EdgeInsets.only(bottom: 20),
+      color: done ? const Color(0xFF69F0AE) : Colors.white.withOpacity(0.2),
+    );
+  }
+
+  Widget _buildStepsList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How to get started',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: ThemeColors.textPrimary(context),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildStep(
+          step: 1,
+          icon: Icons.shopping_bag_outlined,
+          title: 'Get your AgroEzuran device',
+          subtitle: 'Purchase an IoT sensor kit from your authorised AgroEzuran reseller.',
+          done: false,
+        ),
+        _buildStep(
+          step: 2,
+          icon: Icons.qr_code_rounded,
+          title: 'Find your device code',
+          subtitle: 'The AGR-XXXX-XXXX code is printed on the device packaging or sticker.',
+          done: false,
+        ),
+        _buildStep(
+          step: 3,
+          icon: Icons.link_rounded,
+          title: 'Enter the code below',
+          subtitle: 'Connect your device and set up your first crop plot.',
+          done: false,
+          isLast: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStep({
+    required int step,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool done,
+    bool isLast = false,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left: circle + line
+          SizedBox(
+            width: 40,
+            child: Column(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: done ? AppColors.primary.withOpacity(0.15) : ThemeColors.surface(context),
+                    border: Border.all(
+                      color: done ? AppColors.primary : ThemeColors.border(context),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: done
+                        ? const Icon(Icons.check, color: AppColors.primary, size: 16)
+                        : Icon(icon, color: AppColors.primary, size: 16),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        color: ThemeColors.border(context),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Right: text
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 6),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: ThemeColors.textPrimary(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: ThemeColors.textSecondary(context).withOpacity(0.6),
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // INLINE CODE ENTRY (new-user mode, no dialog)
+  // ============================================================
+  Widget _buildInlineCodeEntry(AppLocalizations l10n) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeColors.surface(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _codeError != null
+              ? AppColors.error.withOpacity(0.5)
+              : AppColors.primary.withOpacity(0.35),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.link_rounded, color: AppColors.primary, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Connect Your Device',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: ThemeColors.textPrimary(context),
+                      ),
+                    ),
+                    Text(
+                      'Enter the code from your device packaging',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ThemeColors.textSecondary(context).withOpacity(0.55),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Code input
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: ThemeColors.bg(context),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _codeError != null
+                      ? AppColors.error.withOpacity(0.5)
+                      : ThemeColors.border(context),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    child: const Icon(Icons.qr_code_rounded, color: AppColors.primary, size: 22),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _codeController,
+                      textCapitalization: TextCapitalization.characters,
+                      style: TextStyle(
+                        color: ThemeColors.textPrimary(context),
+                        fontSize: 20,
+                        letterSpacing: 3,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'AGR-XXXX-XXXX',
+                        hintStyle: TextStyle(
+                          color: ThemeColors.textSecondary(context).withOpacity(0.2),
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 17,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      inputFormatters: [
+                        _AgrcodeFormatter(),
+                      ],
+                      onChanged: (_) {
+                        if (_codeError != null) setState(() => _codeError = null);
+                      },
+                    ),
+                  ),
+                  if (_codeController.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _codeController.clear();
+                        setState(() => _codeError = null);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: ThemeColors.textSecondary(context).withOpacity(0.4),
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Error message
+          if (_codeError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, size: 14, color: AppColors.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _codeError!,
+                      style: const TextStyle(fontSize: 12, color: AppColors.error, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Connect button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _codeLoading ? null : _connectFromInlineEntry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: _codeLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.rocket_launch_rounded, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            'Connect & Set Up',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _connectFromInlineEntry() async {
+    final code = _codeController.text.trim().toUpperCase();
+    if (code.isEmpty) {
+      setState(() => _codeError = 'Please enter your device code');
+      return;
+    }
+    if (!RegExp(r'^AGR-[A-Z0-9]{4}-[A-Z0-9]{4}$').hasMatch(code)) {
+      setState(() => _codeError = 'Format should be AGR-XXXX-XXXX');
+      return;
+    }
+
+    setState(() {
+      _codeLoading = true;
+      _codeError = null;
+    });
+
+    try {
+      final snap = await _firestore
+          .collection('devices')
+          .where('unique_code', isEqualTo: code)
+          .where('status', isEqualTo: 'available')
+          .limit(1)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        setState(() {
+          _codeLoading = false;
+          _codeError = 'Device not found or already claimed';
+        });
+        return;
+      }
+
+      final deviceDocId = snap.docs.first.id;
+      if (!mounted) return;
+      await _navigateToClaimDevice(deviceDocId);
+    } catch (_) {
+      setState(() {
+        _codeLoading = false;
+        _codeError = 'Something went wrong. Please try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _codeLoading = false);
+    }
+  }
+
+  Widget _buildHelpCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.info.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.help_outline_rounded, color: AppColors.info, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Where do I find my device code?',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: ThemeColors.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'The code is printed on a sticker attached to your IoT device box, or on a card inside the packaging. '
+                  'It looks like: AGR-1A2B-3C4D',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ThemeColors.textSecondary(context).withOpacity(0.65),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoutRow() {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _handleLogout,
+        icon: const Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
+        label: const Text(
+          'Log out',
+          style: TextStyle(color: AppColors.error, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  String _getFirstName(String fullName) {
+    if (fullName.contains('@')) return fullName.split('@').first.split('.').first;
+    return fullName.split(' ').first;
   }
 
   /// ------------------------------------------------
@@ -378,6 +994,7 @@ class _CropListScreenState extends State<CropListScreen> {
                     letterSpacing: 2.5,
                     fontWeight: FontWeight.w600,
                   ),
+                  inputFormatters: [_AgrcodeFormatter()],
                   decoration: InputDecoration(
                     hintText: 'AGR-XXXX-XXXX',
                     hintStyle: TextStyle(
@@ -390,6 +1007,7 @@ class _CropListScreenState extends State<CropListScreen> {
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
+                  onChanged: (_) => setDialogState(() => errorMsg = null),
                 ),
               ),
               if (errorMsg != null) ...[
@@ -425,6 +1043,10 @@ class _CropListScreenState extends State<CropListScreen> {
                       final code = codeController.text.trim().toUpperCase();
                       if (code.isEmpty) {
                         setDialogState(() => errorMsg = 'Please enter your device code');
+                        return;
+                      }
+                      if (!RegExp(r'^AGR-[A-Z0-9]{4}-[A-Z0-9]{4}$').hasMatch(code)) {
+                        setDialogState(() => errorMsg = 'Format should be AGR-XXXX-XXXX');
                         return;
                       }
                       setDialogState(() {
@@ -480,8 +1102,6 @@ class _CropListScreenState extends State<CropListScreen> {
       ),
     );
     // Dispose after the dialog's widget tree has fully unmounted.
-    // Calling dispose() immediately causes '_dependents.isEmpty' assertion
-    // because the TextField's animation is still tearing down.
     WidgetsBinding.instance.addPostFrameCallback((_) => codeController.dispose());
   }
 
@@ -826,6 +1446,25 @@ class _CropListScreenState extends State<CropListScreen> {
     );
 
     if (result == true && mounted) {
+      // In new-user mode (no back button), take the user through location + profile setup
+      if (!widget.showBackButton) {
+        await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const FarmLocationScreen(isSetupMode: true),
+          ),
+        );
+        if (!mounted) return;
+
+        await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ProfileSetupScreen(isSetupMode: true),
+          ),
+        );
+        if (!mounted) return;
+      }
+
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const MainNavigation()),
         (route) => false,
@@ -947,5 +1586,37 @@ class _CropListScreenState extends State<CropListScreen> {
       case 'ready': return '✅ Ready';
       default: return stage;
     }
+  }
+}
+
+/// ---------------------------------------------------------------
+/// AGR CODE AUTO-FORMATTER
+/// Turns raw input like "AGR1A2B3C4D" into "AGR-1A2B-3C4D"
+/// Max 12 chars (AGR + 4 + 4 = without dashes: 11, with: 12+2=14...
+/// actual: "AGR-XXXX-XXXX" = 13 chars)
+/// ---------------------------------------------------------------
+class _AgrcodeFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Strip everything that isn't alphanumeric
+    final raw = newValue.text.replaceAll(RegExp(r'[^A-Z0-9a-z]'), '').toUpperCase();
+
+    // Enforce max raw length: AGR(3) + 4 + 4 = 11 chars
+    final capped = raw.length > 11 ? raw.substring(0, 11) : raw;
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < capped.length; i++) {
+      if (i == 3 || i == 7) buffer.write('-');
+      buffer.write(capped[i]);
+    }
+
+    final formatted = buffer.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
   }
 }
