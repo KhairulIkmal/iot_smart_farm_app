@@ -35,42 +35,79 @@ A complete farm monitoring and control system consisting of:
 |---------|-------------|
 | Real-Time Dashboard | Live sensor readings updated every 5 seconds via Firebase RTDB |
 | Irrigation Control | Manual pump control + AI-threshold-based auto-irrigation mode |
-| AI Crop Advisor | Claude-powered chatbot with live sensor context for actionable advice |
+| AI Crop Advisor | Claude-powered chatbot with live sensor context and markdown-rendered replies |
+| Crop Thresholds | FAO-56 sourced optimal ranges (soil, pH, temp, humidity) per crop type |
 | Weather Integration | OpenWeatherMap hourly + weekly forecast per farm location |
 | Crop Management | Multi-crop support, device claiming, and crop profile editing |
-| Push Notifications | FCM alerts for critical soil, pH, and water level conditions |
-| Farm Location | GPS-based farm mapping with flutter_map |
-| Sensor Health | Per-sensor health status monitoring (ok / error) |
+| Push Notifications | FCM alerts for device offline, sensor breaches, pump overtime, extreme weather |
+| Notification Inbox | Tabbed feed (All / Critical / Devices / Water / Crops / Weather / System / Archived) |
+| Farm Location | GPS pin-drop on interactive map (flutter_map + OpenStreetMap) |
+| Sensor Analytics | Historical sensor graphs per reading type |
+| Profile Completion | Progressive profile setup with completion card in More screen |
+| Bilingual UI | Full English and Bahasa Malaysia support with live switching |
+| Dark / Light Mode | System-aware theme with live toggle |
+| Support System | Ticket creation with real-time chat per ticket |
+| Sensor Health | Per-sensor health scoring (ok / warning / error) with visual indicators |
 
 ---
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Flutter App                           │
-│   Dashboard │ Sensors │ Irrigation │ AI Advisor │ Weather   │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ Firebase SDK
-         ┌─────────────┴──────────────┐
-         │                            │
-┌────────▼────────┐        ┌──────────▼──────────┐
-│  Firebase RTDB  │        │  Cloud Firestore     │
-│  (live sensors  │        │  (users, crops,      │
-│   & commands)   │        │   irrigation rules)  │
-└────────▲────────┘        └─────────────────────┘
-         │ WiFi
-┌────────┴────────────────────────────────────────┐
-│                   ESP32 Hardware                 │
-│  DHT11 (Temp/Humidity)  │  Soil ADC (GPIO36)    │
-│  pH ADC (GPIO39)        │  Water ADC (GPIO32)   │
-│  Pump Motor (GPIO14/27) │  OLED Display         │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                        Flutter App                            │
+│  Dashboard │ Sensors │ Irrigation │ AI Advisor │ More        │
+│  Crop Mgmt │ Weather │ Analytics  │ Support    │ Onboarding  │
+└───────────────────────┬──────────────────────────────────────┘
+                        │ Firebase SDK
+          ┌─────────────┴───────────────┐
+          │                             │
+┌─────────▼───────┐         ┌───────────▼──────────┐
+│  Firebase RTDB  │         │  Cloud Firestore       │
+│  live sensors   │         │  users, crops,         │
+│  pump commands  │         │  irrigation_rules,     │
+│  device status  │         │  notifications,        │
+└─────────▲───────┘         │  support_tickets,      │
+          │ WiFi             │  crop_thresholds       │
+┌─────────┴────────────────────────────────────────┐ └──────────────────────┘
+│                   ESP32 Hardware                  │
+│  DHT11 (Temp/Humidity)  │  Soil ADC (GPIO36)     │
+│  pH ADC (GPIO39)        │  Water ADC (GPIO32)     │
+│  Pump Motor (GPIO14/27) │  OLED Display           │
+└───────────────────────────────────────────────────┘
 
 External APIs:
-  Claude AI (Anthropic) ──── AI Crop Advisor
-  OpenWeatherMap ─────────── Weather Forecast
+  Anthropic (Claude Haiku) ──── In-app AI Crop Advisor
+  OpenWeatherMap ────────────── Weather Forecast + Alerts
+  OpenStreetMap ─────────────── Farm Location Map Tiles
 ```
+
+---
+
+## User Flow
+
+```
+Install
+  └─ First launch → Onboarding (4 slides, shown once)
+       └─ Register / Login (Email+Password or Google)
+            └─ New user → Crop Setup → Claim Device
+                 └─ Farm Location (map pin)
+                      └─ Profile Setup (photo, farm details)
+                           └─ Dashboard ← Main App
+            └─ Returning user → Dashboard directly
+```
+
+---
+
+## Screen Map
+
+| Tab | Screens |
+|---|---|
+| Dashboard | Live sensor tiles, weather widget, pump quick-action |
+| Sensors | Full sensor cards + analytics graph history |
+| Irrigation | Manual pump tab + Auto threshold rules tab |
+| AI Assistant | Crop threshold cards, "Apply to Irrigation" CTA, AI chat panel |
+| More | Profile, Farm Details, Farm Location, Notifications, Preferences, Support, Legal |
 
 ---
 
@@ -127,10 +164,31 @@ External APIs:
 5. **Firebase Database Rules**
    - Apply the rules from `DATABASE_RULES_FIX.json` in your Firebase console
 
-6. **Run the app**
+6. **Firestore Indexes**
+   Required composite indexes:
+   - Collection `crops`: `farmer_id ASC` + `status ASC`
+   - Collection `irrigation_rules`: `crop_id ASC`
+   - Collection `notifications/{uid}/items`: `timestamp DESC`
+
+7. **Run the app**
    ```bash
    flutter run
    ```
+
+### Build for Release
+
+```bash
+# Android APK
+flutter build apk --release
+
+# Android App Bundle (Play Store)
+flutter build appbundle --release
+
+# iOS
+flutter build ios --release
+```
+
+Launcher icons are auto-generated from `app_icon.png` via `flutter_launcher_icons`.
 
 ### ESP32 Firmware
 
