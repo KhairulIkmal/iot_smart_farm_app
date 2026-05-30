@@ -98,13 +98,25 @@ class _AuthWrapperState extends State<AuthWrapper> {
   final FCMService _fcmService = FCMService();
   bool _fcmInitialized = false;
 
+  // Always show splash for at least this duration on cold open
+  bool _minSplashDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 1800), () {
+      if (mounted) setState(() => _minSplashDone = true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Loading
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Always show splash until minimum duration passes
+        if (!_minSplashDone ||
+            snapshot.connectionState == ConnectionState.waiting) {
           return const SplashScreen();
         }
 
@@ -116,18 +128,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // Logged in
         if (snapshot.hasData && snapshot.data != null) {
-          // Initialize FCM once when user is authenticated
           if (!_fcmInitialized) {
             _fcmInitialized = true;
             _fcmService.initialize();
           }
-
-          // Start monitoring when user is authenticated
           _monitoringManager.startMonitoring();
           return const PostLoginRouter();
         }
 
-        // Not logged in - stop monitoring and reset FCM flag
+        // Not logged in
         _fcmInitialized = false;
         _monitoringManager.stopMonitoring();
         return const LoginScreen();
@@ -225,42 +234,47 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B5E20),
+      backgroundColor: const Color(0xFF161b1d),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture.asset(
-              'assets/icons/agroezuran_icon_allmode.svg',
-              width: 110,
-              height: 110,
+            Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                color: const Color(0xFF161b1d),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.06),
+                    blurRadius: 0,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(22),
+              child: SvgPicture.asset(
+                'assets/icons/agroezuran_icon_allmode.svg',
+              ),
             ),
             const SizedBox(height: 32),
             Text(
               AppLocalizations.of(context).t('AgroEzuran'),
               style: const TextStyle(
-                fontSize: 28,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              AppLocalizations.of(context).t('Smart Farming Solutions'),
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.white.withOpacity(0.8),
-                letterSpacing: 0.5,
-              ),
-            ),
             const SizedBox(height: 48),
             const SizedBox(
-              width: 40,
-              height: 40,
+              width: 32,
+              height: 32,
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF79CA35)),
+                strokeWidth: 2.5,
               ),
             ),
           ],
