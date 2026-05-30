@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../core/theme.dart';
 import '../core/constants.dart';
@@ -157,6 +158,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(width: 12),
+              SvgPicture.asset(
+                'assets/icons/agroezuran_icon_allmode.svg',
+                width: 36,
+                height: 36,
+              ),
+              const SizedBox(width: 8),
               const Text(
                 'AgroEzuran',
                 style: TextStyle(

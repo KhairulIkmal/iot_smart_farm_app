@@ -2,7 +2,7 @@ name: iot_smart_farm_app
 description: "IoT Smart Farm Management Application"
 publish_to: "none"
 
-version: 1.0.0+1
+version: 2.1.0+1
 
 environment:
   sdk: ^3.9.2
@@ -56,6 +56,7 @@ dependencies:
 
   # 🎨 Icons
   font_awesome_flutter: ^10.7.0
+  flutter_svg: ^2.0.10+1
 
   # 🔊 Sound Effects
   audioplayers: ^6.1.0
@@ -72,11 +73,12 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/icons/
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "app_icon.png"
-  adaptive_icon_background: "#2196F3"
+  adaptive_icon_background: "#161b1d"
   adaptive_icon_foreground: "app_icon.png"
   remove_alpha_ios: true

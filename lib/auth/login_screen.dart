@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../core/theme.dart';
 import '../core/constants.dart';
@@ -169,14 +170,10 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Row(
             children: [
-              Container(
+              SvgPicture.asset(
+                'assets/icons/agroezuran_icon_allmode.svg',
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.eco_rounded, color: Colors.white, size: 24),
               ),
               const SizedBox(width: 12),
               const Text(

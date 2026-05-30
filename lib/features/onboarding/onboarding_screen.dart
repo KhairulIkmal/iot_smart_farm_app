@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// ------------------------------------------------------------
 /// ONBOARDING SCREEN
@@ -167,12 +168,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
               color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.eco, color: Colors.white, size: 14),
-                SizedBox(width: 6),
-                Text(
+                SvgPicture.asset(
+                  'assets/icons/agroezuran_icon_allmode.svg',
+                  width: 18,
+                  height: 18,
+                ),
+                const SizedBox(width: 6),
+                const Text(
                   'AgroEzuran',
                   style: TextStyle(
                     color: Colors.white,
