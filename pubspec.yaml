@@ -55,7 +55,7 @@ dependencies:
   intl: ^0.18.0
 
   # 🎨 Icons
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: ^11.0.0
   flutter_svg: ^2.0.10+1
 
   # 🔊 Sound Effects

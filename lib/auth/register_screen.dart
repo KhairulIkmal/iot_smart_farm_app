@@ -6,6 +6,7 @@ import '../core/constants.dart';
 import '../core/app_localizations.dart';
 import 'auth_service.dart';
 import 'login_screen.dart';
+import 'permission_setup_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -74,7 +75,9 @@ class _RegisterScreenState extends State<RegisterScreen>
       if (!result['success']) {
         _showError(result['error'] ?? AppStrings.somethingWentWrong);
       } else {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const PermissionSetupScreen()),
+        );
       }
     } catch (_) {
       _showError(AppStrings.somethingWentWrong);

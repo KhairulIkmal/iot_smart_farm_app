@@ -50,8 +50,9 @@ class AuthService {
         password: password,
       );
 
-      // Update display name
+      // Update display name and reload so currentUser reflects it immediately
       await userCredential.user?.updateDisplayName(name);
+      await userCredential.user?.reload();
 
       // Generate custom user ID
       final userCounterService = UserCounterService();

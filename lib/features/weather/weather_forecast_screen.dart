@@ -499,7 +499,7 @@ class _WeatherForecastScreenState extends State<WeatherForecastScreen> {
   }
 
   Widget _buildWeatherDetailCard({
-    required IconData faIcon,
+    required FaIconData faIcon,
     required Color iconColor,
     required String label,
     required String value,
